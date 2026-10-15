@@ -1,0 +1,58 @@
+name: 🐛 Bug
+description: Algo não funciona como deveria
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o problema.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Acesse /radar
+        2. Selecione o squad Vendas
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: dropdown
+    id: page
+    attributes:
+      label: Aba
+      options:
+        - Visão Executiva
+        - GitHub por Dev
+        - GitHub × Jira
+        - Uso de IA
+        - Custo & Governança
+        - Radar de PRs
+        - Status de Projetos
+        - Guardrails & Skills
+        - Layout / header / sidebar
+    validations:
+      required: true
+  - type: dropdown
+    id: theme
+    attributes:
+      label: Tema
+      options: ["Escuro", "Claro", "Ambos"]
+  - type: input
+    id: browser
+    attributes:
+      label: Navegador e largura da tela
+      placeholder: "Chrome 130, 1440px"
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Prints

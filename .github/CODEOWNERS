@@ -1,0 +1,5 @@
+# Revisores padrão: o GitHub pede revisão automaticamente a estes donos.
+# Adicione mais pessoas ou times conforme o projeto crescer, ex.: /radar/src/mocks/ @org/time-dados
+*                       @LucianoCogna
+/radar/src/index.css    @LucianoCogna
+/.github/               @LucianoCogna

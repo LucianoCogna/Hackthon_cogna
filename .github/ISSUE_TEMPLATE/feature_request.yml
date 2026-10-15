@@ -1,0 +1,36 @@
+name: ✨ Feature
+description: Sugira uma melhoria ou nova funcionalidade
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve?
+      description: Qual pergunta de engenharia ou de gestão hoje não tem resposta?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: O que você imagina? Tela, métrica, gráfico…
+    validations:
+      required: true
+  - type: dropdown
+    id: persona
+    attributes:
+      label: Para qual persona?
+      multiple: true
+      options: ["VP / Head de Engenharia", "Tech Manager / Tech Lead", "Dev"]
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Critérios de aceite
+      description: Use o formato Dado-Quando-Então ou EARS (veja o guardrail 02).
+      placeholder: |
+        QUANDO o Tech Lead filtrar por repositório, O SISTEMA DEVE mostrar apenas os alertas daquele repositório.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Referências e prints

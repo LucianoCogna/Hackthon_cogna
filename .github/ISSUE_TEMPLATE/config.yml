@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📘 Guia de contribuição
+    url: https://github.com/LucianoCogna/Hackthon_cogna/blob/main/CONTRIBUTING.md
+    about: Leia o padrão de branches, commits e PRs antes de abrir uma issue.

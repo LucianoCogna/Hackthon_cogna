@@ -10,3 +10,7 @@ cd radar
 npm install
 npm run dev   # http://localhost:5173
 ```
+
+## Contribuindo
+
+Quer abrir um PR? Leia o [guia de contribuição](CONTRIBUTING.md): padrão de branches, Conventional Commits, PRs de até ~400 linhas com o uso de IA declarado, e o CI (type-check + build) que precisa passar.
