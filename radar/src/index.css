@@ -1,0 +1,166 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------- Tokens · Design System Cogna ----------
+   Paleta extraída de cogna.com.br: roxo #5219A1 (primária), #7433DA / #8038F0 (apoio),
+   roxos profundos #28114B / #180B2C, lavanda #F7F1FF, amarelo #FFAD01 (destaque),
+   neutros #2D3135 / #423950 / #DBD9DE. Tipografia: Poppins (primária) e Roboto (secundária).
+   No RADAR, o roxo é a marca e as ações; o amarelo Cogna é a cor recorrente de "feito por IA". */
+:root {
+  --bg: #f7f5fb;
+  --surface: #ffffff;
+  --surface-2: #f3eefb;
+  --border: #e4deee;
+  --text: #2d3135;
+  --muted: #6b6478;
+  --accent: #5219a1;
+  --accent-strong: #7433da;
+  --accent-soft: rgba(82, 25, 161, 0.09);
+  --on-accent: #ffffff;
+  --ok: #138a52;
+  --warn: #e8590c;
+  --risk: #d32f2f;
+  --ai: #c77d00;
+  --ai-soft: rgba(255, 173, 1, 0.16);
+  --grid: #ece7f4;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #e87ba4;
+  --human: #a39cb0;
+  --shadow: 0 1px 2px rgba(40, 17, 75, 0.06), 0 6px 18px rgba(40, 17, 75, 0.05);
+  /* sidebar: roxo Cogna em ambos os temas */
+  --side-bg: #5219a1;
+  --side-bg-2: #3d127a;
+  --side-text: #ffffff;
+  --side-muted: rgba(255, 255, 255, 0.72);
+  --side-hover: rgba(255, 255, 255, 0.1);
+  --side-active: rgba(255, 255, 255, 0.16);
+  --side-border: rgba(255, 255, 255, 0.12);
+  --brand-yellow: #ffad01;
+}
+
+[data-theme='dark'] {
+  --bg: #120a20;
+  --surface: #1b1030;
+  --surface-2: #24163f;
+  --border: #33234f;
+  --text: #f1ecf9;
+  --muted: #a99fbd;
+  --accent: #a77bf3;
+  --accent-strong: #c5a3f8;
+  --accent-soft: rgba(167, 123, 243, 0.14);
+  --on-accent: #180b2c;
+  --ok: #34d399;
+  --warn: #ff8a4c;
+  --risk: #f87171;
+  --ai: #ffad01;
+  --ai-soft: rgba(255, 173, 1, 0.14);
+  --grid: #2a1c44;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #d55181;
+  --human: #6e6680;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
+  --side-bg: #28114b;
+  --side-bg-2: #180b2c;
+  --side-text: #ffffff;
+  --side-muted: rgba(255, 255, 255, 0.66);
+  --side-hover: rgba(255, 255, 255, 0.07);
+  --side-active: rgba(167, 123, 243, 0.2);
+  --side-border: rgba(255, 255, 255, 0.08);
+  --brand-yellow: #ffad01;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-risk: var(--risk);
+  --color-ai: var(--ai);
+  --color-ai-soft: var(--ai-soft);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-side-text: var(--side-text);
+  --color-side-muted: var(--side-muted);
+  --color-side-hover: var(--side-hover);
+  --color-side-active: var(--side-active);
+  --color-side-border: var(--side-border);
+  --font-sans: 'Poppins', 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Roboto', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ---------- Base ---------- */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  border-color: var(--border);
+}
+.grid > * {
+  min-width: 0;
+}
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.card-glow {
+  transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+}
+.card-glow:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 0 28px -6px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.bg-grid {
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 10%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+.recharts-cartesian-axis-tick text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.recharts-tooltip-cursor {
+  fill: var(--accent-soft);
+}
+@keyframes radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.radar-sweep {
+  animation: radar-sweep 4s linear infinite;
+  transform-origin: 50% 50%;
+}
