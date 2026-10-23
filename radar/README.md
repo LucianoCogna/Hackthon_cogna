@@ -57,3 +57,12 @@ Tokens em `src/index.css`, com a paleta extraída de cogna.com.br:
 
 Tipografia: **Poppins** (primária), Roboto (secundária) e JetBrains Mono para números.
 O wordmark Cogna fica em `src/components/CognaLogo.tsx` e herda a cor via `currentColor`.
+
+## Deploy (Vercel)
+
+O projeto `radar-cogna` na Vercel está ligado a este repositório, com **Root Directory = `radar`**:
+
+- cada merge na `main` publica em produção: https://radar-cogna.vercel.app
+- cada PR ganha um deploy de preview automático, com o link comentado no PR
+
+O `vercel.json` desta pasta configura o build do Vite e o fallback de SPA, para que um F5 em rotas como `/radar` não dê 404.
