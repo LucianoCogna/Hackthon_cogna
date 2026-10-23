@@ -18,6 +18,7 @@ import {
   Sun,
   Users,
   Wallet,
+  Workflow,
   X,
   UserCircle2,
 } from 'lucide-react';
@@ -41,6 +42,7 @@ export const NAV: NavItem[] = [
   { to: '/radar', label: 'Radar de PRs', icon: Radar, personas: ['tl'] },
   { to: '/projetos', label: 'Status de Projetos', icon: FolderKanban, personas: ['vp', 'tl'] },
   { to: '/guardrails', label: 'Guardrails & Skills', icon: ShieldCheck, personas: ['dev', 'tl'] },
+  { to: '/crew', label: 'RADAR Crew', icon: Workflow, personas: ['vp', 'tl', 'dev'] },
 ];
 
 function readCollapsed() {
