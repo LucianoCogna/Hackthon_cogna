@@ -1,41 +1,18 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import JSZip from "jszip";
 import { toast } from "sonner";
 import {
   Archive,
   ArrowRight,
-  Bot,
-  CircleDollarSign,
-  Compass,
   Copy,
-  Eye,
-  FolderGit2,
-  GitPullRequest,
-  Hammer,
   Loader2,
-  Rocket,
-  ScrollText,
-  ShieldCheck,
-  Sparkles,
-  Workflow,
-  Wrench,
 } from "lucide-react";
-import { FadeIn, PageHeader, MetricInfo } from "@/components/shared";
+import { FadeIn, PageHeader } from "@/components/shared";
 import { Card } from "@/components/ui/card";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/overlay";
-import {
-  RECOMMENDED,
-  ROUTING,
-  MODEL_MULT,
-  TASK_BASE,
-  CREDIT_BRL,
-} from "@/mocks/kiro";
+import { RECOMMENDED, ROUTING } from "@/mocks/kiro";
 import type { KiroTask } from "@/mocks/types";
-import { useScope } from "@/app/store";
-import { prRisk } from "@/lib/metrics";
-import { fmtBRL, fmtInt } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // KiroCópter — crew de agentes do Kiro (kit reutilizável da VP Tech)
@@ -71,7 +48,6 @@ type Agent = {
   id: string;
   role: string;
   category: Category;
-  icon: React.ElementType;
   does: string;
   reusable: string;
   solves: string;
@@ -87,7 +63,6 @@ const AGENTS: Agent[] = [
     id: "radar-orchestrator",
     role: "Torre de controle do crew",
     category: "orchestrate",
-    icon: Compass,
     does: "Recebe o pedido do Tech Lead ou do dev e roteia para o especialista: abrir card, auditar PR × card ou calcular risco. Consolida a resposta.",
     reusable:
       "A squad fala com um agente só; a divisão de trabalho fica dentro do crew.",
@@ -128,7 +103,6 @@ Se o pedido combinar mais de um (ex.: 'abre o card X e já audita o PR Y'), acio
     id: "analise-starter",
     role: "Abre a análise de um card do Jira",
     category: "spec",
-    icon: FolderGit2,
     does: "Classifica o tipo do card (qualquer prefixo [A-Z]+-\\d+), cria pasta + README no padrão da squad, puxa o contexto do Jira (MCP) ou colado, e sugere o modelo antes de cada tarefa.",
     reusable:
       "Detecta o prefixo do Jira e a convenção do repo — não assume CRPR nem DENA.",
@@ -179,7 +153,6 @@ CLASSIFIQUE O TIPO do card e escolha o template de pasta (incidente, story/featu
     id: "jira-adherence",
     role: "Audita PR × critérios do card",
     category: "spec",
-    icon: ScrollText,
     does: "Lê os critérios de aceite do card e o diff do PR. Marca cada critério como atendido, parcial ou não encontrado, com evidência arquivo:linha.",
     reusable:
       "Toda squad tem Jira e PR. A mesma auditoria vale para qualquer uma.",
@@ -225,7 +198,6 @@ Para cada critério de aceite, responda em uma linha: [atendido | parcial | não
     id: "pr-auditor",
     role: "Calcula o risk score do PR",
     category: "run",
-    icon: GitPullRequest,
     does: "Calcula o risk score do PR (revisão vs. esperado, % IA, aderência, testes, tamanho) e, se crítico, redige o pedido de re-review pronto para colar.",
     reusable: "Mede PR real (git) ou números colados; roda em qualquer repo.",
     solves: '"99% IA, aprovado em 30s": vira um score com os motivos claros.',
@@ -296,26 +268,6 @@ const SKILLS_INFO: { id: string; desc: string }[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Fluxo: situação -> agente -> resultado
-// ---------------------------------------------------------------------------
-const FLOW = [
-  {
-    trigger: "Peguei o card X, quero começar",
-    agent: "analise-starter",
-    action: "Cria pasta + README no padrão e sugere o modelo por tarefa",
-  },
-  {
-    trigger: "Esse PR bate com o card?",
-    agent: "jira-adherence",
-    action: "Audita critério a critério, com evidência arquivo:linha",
-  },
-  {
-    trigger: "Esse PR é arriscado? (99% IA, 30s)",
-    agent: "pr-auditor",
-    action: "Calcula o risk score e, se crítico, redige o re-review",
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Arquivos do kit (.zip) — conteúdo real do KiroCópter
@@ -605,39 +557,10 @@ ${SKILLS_INFO.map((s) => `│  ├─ ${s.id}/SKILL.md`).join("\n")}
 .github/
 └─ pull_request_template.md`;
 
-const TRIVIAL: KiroTask[] = ["commit", "explicar código"];
 
-// classes completas (Tailwind não gera classes montadas por template string)
-const ICON_TONE = {
-  risk: "border-risk/30 bg-risk/10 text-risk",
-  ai: "border-ai/30 bg-ai/10 text-ai",
-  warn: "border-warn/30 bg-warn/10 text-warn",
-  ok: "border-ok/30 bg-ok/10 text-ok",
-} as const;
 
 export default function Crew() {
-  const scope = useScope();
-  const [viewing, setViewing] = useState<Agent | null>(null);
   const [zipping, setZipping] = useState(false);
-
-  // números do período filtrado: o que o crew teria pegado
-  const stats = useMemo(() => {
-    const critical = scope.prs.filter((p) => prRisk(p) >= 70).length;
-    const lowAdherence = scope.prs.filter(
-      (p) => p.jiraAdherence !== null && p.jiraAdherence < 60,
-    ).length;
-    let wrongCalls = 0;
-    let waste = 0;
-    for (const u of scope.usage) {
-      if (!ROUTING[u.taskType].includes(u.model)) {
-        if (TRIVIAL.includes(u.taskType)) wrongCalls += u.calls;
-        const ideal =
-          TASK_BASE[u.taskType] * MODEL_MULT[RECOMMENDED[u.taskType]] * u.calls;
-        waste += Math.max(0, u.credits - ideal) * CREDIT_BRL;
-      }
-    }
-    return { critical, lowAdherence, wrongCalls, waste };
-  }, [scope]);
 
   const copy = (text: string, msg: string, description?: string) => {
     if (!navigator.clipboard)
@@ -676,338 +599,112 @@ export default function Crew() {
     }
   };
 
-  const kpis = [
-    {
-      icon: GitPullRequest,
-      tone: "risk",
-      value: fmtInt(stats.critical),
-      label: "PRs críticos para o pr-auditor",
-      info: "PRs do período com risk score ≥ 70.",
-    },
-    {
-      icon: ScrollText,
-      tone: "ai",
-      value: fmtInt(stats.lowAdherence),
-      label: "PRs com aderência < 60% ao card",
-      info: "PRs vinculados a história com aderência abaixo de 60%.",
-    },
-    {
-      icon: Bot,
-      tone: "warn",
-      value: fmtInt(stats.wrongCalls),
-      label: "chamadas com modelo caro em tarefa trivial",
-      info: "Commit e explicação de código feitos fora do modelo sugerido (Haiku).",
-    },
-    {
-      icon: CircleDollarSign,
-      tone: "ok",
-      value: fmtBRL(stats.waste),
-      label: "economia potencial do sugere-modelo",
-      info: "Custo real − custo com o modelo sugerido, para chamadas fora da política.",
-    },
-  ] as const;
-
   return (
     <div>
       <PageHeader
         eyebrow="KiroCópter · Build Once, Use Everywhere"
-        title="O crew que age sobre os alertas do RADAR"
-        subtitle="O RADAR mede e aponta. O KiroCópter age. São agentes, skills e um hook do Kiro que qualquer squad da VP Tech copia para o próprio repositório — agnóstico de stack."
+        title="Veja o esquadrão em ação antes de baixar"
+        subtitle="4 agentes do Kiro + um exemplo spec-driven pronto. O RADAR aponta o problema, o KiroCópter resolve."
         actions={
-          <Button variant="primary" onClick={downloadKit} disabled={zipping}>
-            {zipping ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Archive className="h-4 w-4" />
-            )}{" "}
-            Baixar o Crew (.zip)
-          </Button>
+          <img src="/kirocopter.png" alt="KiroCópter" className="h-20 w-20 shrink-0 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)]" />
         }
       />
 
-      {/* O que o crew teria pegado no período */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((k, i) => {
-          const Icon = k.icon;
-          return (
-            <FadeIn key={k.label} delay={i * 0.05}>
-              <Card className="card-glow flex h-full items-center gap-3 p-4">
-                <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${ICON_TONE[k.tone]}`}
-                >
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="num text-xl font-semibold">{k.value}</div>
-                  <div className="flex items-center gap-1 text-xs text-muted">
-                    <span>{k.label}</span>
-                    <MetricInfo>{k.info}</MetricInfo>
-                  </div>
-                </div>
-              </Card>
-            </FadeIn>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[11px] text-muted">
-        Números do período filtrado ({scope.scopeLabel}).
-      </p>
-
-      {/* Agentes */}
-      <h2 className="mb-3 mt-8 flex items-center gap-2 text-sm font-semibold">
-        <Bot className="h-4 w-4 text-accent" /> Agentes do crew
-      </h2>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {AGENTS.map((a, i) => {
-          const Icon = a.icon;
-          const cat = CATEGORY[a.category];
-          return (
-            <FadeIn key={a.id} delay={i * 0.05}>
-              <Card className="card-glow group flex h-full flex-col p-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-accent/25 bg-accent-soft text-accent transition-transform group-hover:scale-105">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <Badge tone={cat.tone}>{cat.label}</Badge>
-                </div>
-                <div className="num mt-3 text-sm font-semibold">{a.id}</div>
-                <div className="text-xs text-muted">{a.role}</div>
-                <p className="mt-2 flex-1 text-xs leading-relaxed text-muted">
-                  {a.does}
-                </p>
-                <div className="mt-3 rounded-lg border border-border bg-surface-2 px-2.5 py-2 text-[11px] leading-relaxed text-muted">
-                  <span className="font-semibold text-text">Resolve: </span>
-                  {a.solves}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="subtle"
-                    className="flex-1"
-                    onClick={() => setViewing(a)}
-                  >
-                    <Eye className="h-3.5 w-3.5" /> Ver agente
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() =>
-                      copy(a.md, `${a.id}.md copiado`, "Cole em .kiro/agents/")
-                    }
-                  >
-                    <Copy className="h-3.5 w-3.5" /> Copiar
-                  </Button>
-                </div>
-              </Card>
-            </FadeIn>
-          );
-        })}
+      <div className="flex flex-wrap gap-2">
+        <Badge tone="ok">testado ao vivo no Kiro</Badge>
+        <Badge tone="accent">cobre SPEC · BUILD · RUN</Badge>
+        <Badge>instala em qualquer repo</Badge>
       </div>
 
-      {/* SPEC / BUILD / RUN */}
-      <h2 className="mb-3 mt-8 flex items-center gap-2 text-sm font-semibold">
-        <Workflow className="h-4 w-4 text-accent" /> Cobertura SPEC · BUILD ·
-        RUN
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {(["spec", "build", "run"] as const).map((c, i) => {
-          const cat = CATEGORY[c];
-          const CatIcon =
-            c === "spec" ? Sparkles : c === "build" ? Hammer : Wrench;
-          const extra =
-            c === "spec"
-              ? "skills kirocop-spec-ears · spec de exemplo"
-              : c === "build"
-                ? "skill kirocop-sugere-modelo"
-                : "hook pr-size-hint (sem LLM) · template de PR";
-          const list = AGENTS.filter((a) => a.category === c);
-          return (
-            <FadeIn key={c} delay={i * 0.05}>
-              <Card className="card-glow h-full p-5">
-                <div className="flex items-center gap-2">
-                  <CatIcon className="h-4 w-4 text-accent" />
-                  <Badge tone={cat.tone}>{cat.label}</Badge>
-                </div>
-                <p className="mt-2 text-xs text-muted">{cat.desc}</p>
-                <ul className="mt-3 space-y-1.5 text-xs">
-                  {list.length ? (
-                    list.map((a) => (
-                      <li
-                        key={a.id}
-                        className="num flex items-center gap-2 text-text"
-                      >
-                        <a.icon className="h-3.5 w-3.5 text-accent" /> {a.id}
-                      </li>
-                    ))
-                  ) : (
-                    <li className="num flex items-center gap-2 text-muted">
-                      — sem agente dedicado —
-                    </li>
-                  )}
-                  <li className="flex items-center gap-2 text-muted">
-                    <ShieldCheck className="h-3.5 w-3.5" /> {extra}
-                  </li>
-                </ul>
-              </Card>
-            </FadeIn>
-          );
-        })}
-      </div>
+      <FadeIn delay={0.05}>
+        <Card className="card-glow relative mt-5 overflow-hidden p-6">
+          <span className="absolute inset-y-0 left-0 w-1" style={{ background: "linear-gradient(180deg, var(--accent), var(--brand-yellow))" }} />
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-ai">O maior ganho</div>
+          <div className="mt-1.5 text-xl font-semibold">Exemplo spec-driven pronto pra copiar</div>
+          <p className="mt-1 max-w-2xl text-sm text-muted">Trabalhar em modo Spec é difícil pra muita gente. O kit já vem com um exemplo completo e navegável: requirements, design e tasks. É só olhar e replicar.</p>
+          <div className="mt-4 grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr]">
+            <div className="rounded-lg border border-border bg-bg px-3 py-2.5"><div className="num text-xs text-accent">requirements.md</div><div className="mt-0.5 text-[11px] text-muted">critérios de aceite em EARS</div></div>
+            <ArrowRight className="mx-auto hidden h-4 w-4 text-muted sm:block" />
+            <div className="rounded-lg border border-border bg-bg px-3 py-2.5"><div className="num text-xs text-accent">design.md</div><div className="mt-0.5 text-[11px] text-muted">decisões e componentes</div></div>
+            <ArrowRight className="mx-auto hidden h-4 w-4 text-muted sm:block" />
+            <div className="rounded-lg border border-border bg-bg px-3 py-2.5"><div className="num text-xs text-accent">tasks.md</div><div className="mt-0.5 text-[11px] text-muted">1 task = 1 PR + modelo sugerido</div></div>
+          </div>
+        </Card>
+      </FadeIn>
 
-      {/* Fluxo */}
-      <h2 className="mb-3 mt-8 flex items-center gap-2 text-sm font-semibold">
-        <Rocket className="h-4 w-4 text-accent" /> Do pedido à ação
-      </h2>
-      <div className="grid gap-3">
-        {FLOW.map((f, i) => (
-          <FadeIn key={f.agent} delay={i * 0.05}>
-            <Card className="card-glow flex flex-col items-stretch gap-3 p-4 md:flex-row md:items-center">
-              <div className="flex-1 rounded-lg border border-risk/25 bg-risk/5 px-3 py-2 text-xs">
-                <div className="font-semibold text-risk">Pedido</div>
-                <div className="mt-0.5 text-muted">{f.trigger}</div>
-              </div>
-              <ArrowRight className="mx-auto h-4 w-4 shrink-0 rotate-90 text-muted md:mx-0 md:rotate-0" />
-              <div className="flex-1 rounded-lg border border-accent/25 bg-accent-soft px-3 py-2 text-xs">
-                <div className="num font-semibold text-accent">{f.agent}</div>
-                <div className="mt-0.5 text-muted">
-                  acionado pelo radar-orchestrator
-                </div>
-              </div>
-              <ArrowRight className="mx-auto h-4 w-4 shrink-0 rotate-90 text-muted md:mx-0 md:rotate-0" />
-              <div className="flex-1 rounded-lg border border-ok/25 bg-ok/5 px-3 py-2 text-xs">
-                <div className="font-semibold text-ok">Resultado</div>
-                <div className="mt-0.5 text-muted">{f.action}</div>
-              </div>
-            </Card>
-          </FadeIn>
-        ))}
-      </div>
-
-      {/* Skills + estrutura */}
-      <div className="mt-8 grid gap-3 lg:grid-cols-2">
+      <h2 className="mb-1 mt-8 text-lg font-semibold">A demo: um card de Jira e um PR (fictícios, prefixo DEMO-)</h2>
+      <p className="mb-3 text-sm text-muted">Os agentes leem estes arquivos de verdade. Sem mock de UI, é o Kiro trabalhando.</p>
+      <div className="grid gap-3 md:grid-cols-2">
         <FadeIn>
           <Card className="card-glow h-full p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Sparkles className="h-4 w-4 text-accent" /> Skills de apoio
-            </div>
-            <p className="mt-1 text-xs text-muted">
-              Os agentes usam sozinhos. Prefixo{" "}
-              <span className="num">kirocop-</span> para não colidir com skills
-              da squad.
-            </p>
-            <ul className="mt-3 space-y-2">
-              {SKILLS_INFO.map((s) => (
-                <li
-                  key={s.id}
-                  className="rounded-lg border border-border bg-surface-2 px-3 py-2"
-                >
-                  <div className="num text-xs font-semibold text-text">
-                    {s.id}
-                  </div>
-                  <div className="text-[11px] leading-relaxed text-muted">
-                    {s.desc}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="flex items-center gap-2"><span className="num rounded-md bg-ai-soft px-1.5 py-0.5 text-[11px] text-ai">DEMO-001</span><span className="text-sm font-semibold">Checkout: validar CPF + cupom</span></div>
+            <div className="mt-3 text-xs font-semibold">Critérios de aceite</div>
+            <ol className="mt-1 list-decimal space-y-1 pl-5 text-xs text-muted">
+              <li>Validar dígito verificador do CPF</li>
+              <li>Aplicar cupom válido ao total</li>
+              <li>Cupom expirado mantém preço cheio</li>
+              <li>Testes de CPF inválido e cupom expirado</li>
+            </ol>
           </Card>
         </FadeIn>
-
         <FadeIn delay={0.05}>
-          <Card className="card-glow flex h-full flex-col p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <ShieldCheck className="h-4 w-4 text-accent" /> O que a squad
-              instala
-            </div>
-            <p className="mt-1 text-xs text-muted">
-              Descompacte o .zip na raiz do repositório. Os agentes aparecem no
-              seletor de agentes do Kiro.
-            </p>
-            <pre className="num mt-3 flex-1 overflow-auto rounded-lg border border-border bg-bg p-3 text-[11px] leading-relaxed text-muted">
-              {KIT_TREE}
-            </pre>
-            <div className="mt-3 flex gap-2">
-              <Button
-                variant="primary"
-                className="flex-1"
-                onClick={downloadKit}
-                disabled={zipping}
-              >
-                {zipping ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Archive className="h-4 w-4" />
-                )}{" "}
-                Baixar o Crew (.zip)
-              </Button>
-              <Button
-                variant="subtle"
-                onClick={() => copy(KIT_TREE, "Estrutura do kit copiada")}
-              >
-                <Copy className="h-4 w-4" /> Copiar árvore
-              </Button>
+          <Card className="card-glow h-full p-5">
+            <div className="flex items-center gap-2"><span className="num rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent">DEMO-PR-1</span><span className="text-sm font-semibold">feat: checkout (cupom + refactor)</span></div>
+            <div className="mt-3 text-xs font-semibold">Sinais do PR</div>
+            <div className="mt-1 space-y-1 text-xs text-muted">
+              <div>% IA: 99 · revisão: 30s · ~660 linhas</div>
+              <div>testes: não · CPF: não aparece no diff</div>
+              <div>refactor amplo fora do escopo do card</div>
+              <div className="italic text-accent">"aprovado em 30s, não bate com o card"</div>
             </div>
           </Card>
         </FadeIn>
       </div>
 
-      <div className="mt-6 flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-xs text-muted">
-        <Bot className="h-4 w-4 shrink-0 text-accent" />O KiroCópter gera os
-        dados de uso que o RADAR monitora. Build once em{" "}
-        <span className="num">.kiro/</span>, use everywhere em qualquer squad.
+      <h2 className="mb-1 mt-8 text-lg font-semibold">O que cada agente devolve</h2>
+      <p className="mb-3 text-sm text-muted">Resultado real da execução nos arquivos acima.</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <FadeIn>
+          <Card className="card-glow h-full border-l-4 border-l-risk p-5">
+            <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">pr-auditor</span><Badge tone="warn">RUN</Badge></div>
+            <div className="num mt-2 text-[34px] font-bold leading-none text-risk">81<span className="text-sm font-medium text-muted">/100 · crítico</span></div>
+            <p className="mt-2 text-xs text-muted">revisão 180x rápida demais · 99% IA · sem testes<br /><span className="font-semibold text-ok">gera pedido de re-review pronto pra colar</span></p>
+          </Card>
+        </FadeIn>
+        <FadeIn delay={0.05}>
+          <Card className="card-glow h-full border-l-4 border-l-ai p-5">
+            <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">jira-adherence</span><Badge tone="accent">SPEC</Badge></div>
+            <div className="num mt-2 text-[34px] font-bold leading-none text-ai">25%<span className="text-sm font-medium text-muted"> de aderência</span></div>
+            <p className="mt-2 text-xs text-muted">crit. 1 (CPF) e 4 (testes): não encontrados<br />crit. 2 e 3 (cupom): parcial, função não ligada</p>
+          </Card>
+        </FadeIn>
+        <FadeIn delay={0.1}>
+          <Card className="card-glow h-full border-l-4 border-l-ok p-5">
+            <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">analise-starter</span><Badge tone="ok">SPEC/BUILD</Badge></div>
+            <p className="mt-3 text-xs text-muted">Abre o card (qualquer prefixo: CRPR, DENA, PLAT...), cria pasta + README no padrão da squad e <span className="text-accent">sugere o modelo certo antes de cada tarefa.</span></p>
+          </Card>
+        </FadeIn>
+        <FadeIn delay={0.15}>
+          <Card className="card-glow h-full border-l-4 border-l-accent p-5">
+            <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">radar-orchestrator</span><Badge>ORQUESTRA</Badge></div>
+            <p className="mt-3 text-xs text-muted">A torre de controle. Você fala com um agente só; ele identifica o pedido e aciona o especialista certo, depois consolida a resposta.</p>
+          </Card>
+        </FadeIn>
       </div>
 
-      {/* Modal do agente */}
-      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
-        {viewing && (
-          <DialogContent
-            className="max-w-2xl"
-            title={<span className="num">{viewing.id}</span>}
-            description={viewing.role}
-            footer={
-              <Button
-                variant="primary"
-                onClick={() =>
-                  copy(
-                    viewing.md,
-                    `${viewing.id}.md copiado`,
-                    "Cole em .kiro/agents/",
-                  )
-                }
-              >
-                <Copy className="h-4 w-4" /> Copiar .md
-              </Button>
-            }
-          >
-            <div className="space-y-4 text-sm">
-              <Badge tone={CATEGORY[viewing.category].tone}>
-                {CATEGORY[viewing.category].label}
-              </Badge>
-              <div>
-                <div className="text-xs font-semibold text-muted">
-                  O que faz
-                </div>
-                <p className="mt-0.5">{viewing.does}</p>
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-muted">
-                  Por que é reutilizável
-                </div>
-                <p className="mt-0.5">{viewing.reusable}</p>
-              </div>
-              <div>
-                <div className="num text-xs font-semibold text-muted">
-                  .kiro/agents/{viewing.id}.md
-                </div>
-                <pre className="num mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-bg p-3 text-[11px] leading-relaxed text-muted">
-                  {viewing.md}
-                </pre>
-              </div>
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
+      <FadeIn delay={0.1}>
+        <Card className="card-glow mt-8 flex flex-col items-start justify-between gap-5 p-6 md:flex-row md:items-center">
+          <div>
+            <h3 className="text-lg font-semibold">Gostou? Leve o esquadrão pro seu repo</h3>
+            <div className="num mt-1.5 text-xs text-muted">.kiro/ · 4 agentes · 4 skills · hook · spec de exemplo · template de PR</div>
+            <div className="mt-3 flex gap-2"><Badge tone="ok">SPEC</Badge><Badge tone="ok">BUILD</Badge><Badge tone="ok">RUN</Badge></div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="subtle" onClick={() => copy(KIT_TREE, "Estrutura do kit copiada")}><Copy className="h-4 w-4" /> Copiar árvore</Button>
+            <Button variant="primary" onClick={downloadKit} disabled={zipping}>{zipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />} Recrutar o esquadrão</Button>
+          </div>
+        </Card>
+      </FadeIn>
     </div>
   );
 }
