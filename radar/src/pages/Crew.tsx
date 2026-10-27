@@ -7,7 +7,7 @@ import {
   Copy,
   Loader2,
 } from "lucide-react";
-import { FadeIn, PageHeader } from "@/components/shared";
+import { FadeIn } from "@/components/shared";
 import { Card } from "@/components/ui/card";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -601,14 +601,16 @@ export default function Crew() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="KiroCópter · Build Once, Use Everywhere"
-        title="Veja o esquadrão em ação antes de baixar"
-        subtitle="4 agentes do Kiro + um exemplo spec-driven pronto. O RADAR aponta o problema, o KiroCópter resolve."
-        actions={
-          <img src="/kirocopter.png" alt="KiroCópter" className="h-20 w-20 shrink-0 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)]" />
-        }
-      />
+      <div className="mb-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[1fr_280px]">
+        <div className="min-w-0">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">KiroCópter · Build Once, Use Everywhere</div>
+          <h1 className="text-2xl font-semibold tracking-tight">Veja o esquadrão em ação antes de baixar</h1>
+          <p className="mt-1 max-w-3xl text-sm text-muted">4 agentes do Kiro + um exemplo spec-driven pronto. O RADAR aponta o problema, o KiroCópter resolve.</p>
+        </div>
+        <div className="flex items-center justify-center">
+          <img src="/kirocopter.png" alt="KiroCópter" className="h-40 w-40 object-contain drop-shadow-[0_10px_28px_rgba(167,123,243,0.4)]" />
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <Badge tone="ok">testado ao vivo no Kiro</Badge>
