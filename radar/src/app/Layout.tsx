@@ -14,7 +14,6 @@ import {
   Moon,
   Radar,
   RotateCcw,
-  ShieldCheck,
   Sun,
   Users,
   Wallet,
@@ -41,7 +40,6 @@ export const NAV: NavItem[] = [
   { to: '/custo', label: 'Custo & Governança', icon: Wallet, personas: ['vp'] },
   { to: '/radar', label: 'Radar de PRs', icon: Radar, personas: ['tl'] },
   { to: '/projetos', label: 'Status de Projetos', icon: FolderKanban, personas: ['vp', 'tl'] },
-  { to: '/guardrails', label: 'Guardrails & Skills', icon: ShieldCheck, personas: ['dev', 'tl'] },
   { to: '/crew', label: 'KiroCópter', icon: Fan, personas: ['vp', 'tl', 'dev'] },
 ];
 

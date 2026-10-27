@@ -6,6 +6,9 @@ import {
   ArrowRight,
   Copy,
   Loader2,
+  Settings2,
+  Sparkles,
+  Webhook,
 } from "lucide-react";
 import { FadeIn } from "@/components/shared";
 import { Card } from "@/components/ui/card";
@@ -601,13 +604,13 @@ export default function Crew() {
 
   return (
     <div>
-      <div className="mb-6 grid grid-cols-1 items-center gap-4 md:grid-cols-[1fr_280px]">
-        <div className="min-w-0">
+      <div className="mb-6 flex flex-col items-center gap-6 md:flex-row">
+        <div className="min-w-0 md:max-w-xl">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">KiroCópter · Build Once, Use Everywhere</div>
           <h1 className="text-2xl font-semibold tracking-tight">Veja o esquadrão em ação antes de baixar</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted">4 agentes do Kiro + um exemplo spec-driven pronto. O RADAR aponta o problema, o KiroCópter resolve.</p>
         </div>
-        <div className="flex items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <img src="/kirocopter.png" alt="KiroCópter" className="h-40 w-40 object-contain drop-shadow-[0_10px_28px_rgba(167,123,243,0.4)]" />
         </div>
       </div>
@@ -690,6 +693,34 @@ export default function Crew() {
           <Card className="card-glow h-full border-l-4 border-l-accent p-5">
             <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">radar-orchestrator</span><Badge>ORQUESTRA</Badge></div>
             <p className="mt-3 text-xs text-muted">A torre de controle. Você fala com um agente só; ele identifica o pedido e aciona o especialista certo, depois consolida a resposta.</p>
+          </Card>
+        </FadeIn>
+      </div>
+
+      <h2 className="mb-1 mt-10 text-lg font-semibold">Guardrails e Skills do kit</h2>
+      <p className="mb-3 text-sm text-muted">As boas praticas vem embutidas: skills que os agentes usam sozinhos, um steering sempre ativo e um hook deterministico (sem LLM).</p>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {SKILLS_INFO.map((s2, i) => (
+          <FadeIn key={s2.id} delay={i * 0.04}>
+            <Card className="card-glow h-full p-5">
+              <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-ai" /><span className="num text-sm font-semibold">{s2.id}</span></div>
+              <p className="mt-2 text-xs leading-relaxed text-muted">{s2.desc}</p>
+              <Badge tone="ai" className="mt-3">skill</Badge>
+            </Card>
+          </FadeIn>
+        ))}
+        <FadeIn delay={0.16}>
+          <Card className="card-glow h-full p-5">
+            <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-accent" /><span className="num text-sm font-semibold">radar-crew</span></div>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Steering sempre ativo com o contexto e as regras do crew: pt-BR, evidencia, LGPD, PR enxuto.</p>
+            <Badge tone="accent" className="mt-3">steering</Badge>
+          </Card>
+        </FadeIn>
+        <FadeIn delay={0.2}>
+          <Card className="card-glow h-full p-5">
+            <div className="flex items-center gap-2"><Webhook className="h-4 w-4 text-warn" /><span className="num text-sm font-semibold">pr-size-hint</span></div>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Hook deterministico que avisa (nao bloqueia) quando o PR passa de 1000 linhas. Sem LLM, custo zero.</p>
+            <Badge tone="warn" className="mt-3">hook</Badge>
           </Card>
         </FadeIn>
       </div>

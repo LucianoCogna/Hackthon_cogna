@@ -13,7 +13,6 @@ import AiUsage from './pages/AiUsage';
 import AiCost from './pages/AiCost';
 import PrRadar from './pages/PrRadar';
 import Projects from './pages/Projects';
-import Guardrails from './pages/Guardrails';
 import Crew from './pages/Crew';
 
 const router = createBrowserRouter([
@@ -28,7 +27,6 @@ const router = createBrowserRouter([
       { path: 'custo', element: <AiCost /> },
       { path: 'radar', element: <PrRadar /> },
       { path: 'projetos', element: <Projects /> },
-      { path: 'guardrails', element: <Guardrails /> },
       { path: 'crew', element: <Crew /> },
       { path: '*', element: <Overview /> },
     ],
