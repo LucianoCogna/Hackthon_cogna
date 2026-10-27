@@ -60,3 +60,54 @@ export type JiraHealthResponse = {
   boards: { squadId: string; boardId: number; name: string; ok: boolean; error?: string }[];
   error?: string;
 };
+
+// ---------------------------------------------------------------------------
+// /api/github/* — mesmo formato de PR usado pelas abas (src/mocks/types.ts › PullRequest)
+// ---------------------------------------------------------------------------
+export type GithubPr = {
+  id: string;
+  number: number;
+  repo: string;
+  title: string;
+  authorId: string;
+  reviewerIds: string[];
+  squadId: string;
+  sprintId: string;
+  createdAt: string;
+  mergedAt: string | null;
+  linesAdded: number;
+  linesRemoved: number;
+  filesChanged: number;
+  aiGeneratedPct: number;
+  aiAssistedReview: boolean;
+  reviewTimeMin: number;
+  reviewComments: number;
+  jiraKey: string | null;
+  jiraAdherence: number | null;
+  adherenceNotes: string[];
+  testsAdded: boolean;
+  testCoverageDelta: number;
+  ciStatus: 'passed' | 'failed';
+  revertedOrHotfix: boolean;
+  leadTimeH: number;
+  url: string | null;
+};
+
+export type GithubDev = {
+  id: string;
+  name: string;
+  /** pontos do Jira por sprint (id da sprint → comprometidos/entregues) */
+  points: Record<string, { committed: number; done: number; stories: number }>;
+};
+
+export type GithubPrsResponse = {
+  /** 'simulado' enquanto o token do GitHub não é aprovado; 'github' quando vier da API real */
+  source: 'simulado' | 'github';
+  basedOn: 'jira';
+  squadId: string;
+  squadName: string;
+  sprints: JiraSprint[];
+  devs: GithubDev[];
+  prs: GithubPr[];
+  generatedAt: string;
+};

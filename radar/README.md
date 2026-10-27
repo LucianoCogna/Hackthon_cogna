@@ -75,9 +75,12 @@ Vercel Functions em [`api/`](api/). O token do Jira fica só no servidor; o nave
 |---|---|
 | `GET /api/jira/health` | Confere as credenciais, o campo de critérios de aceite e o acesso aos quadros |
 | `GET /api/jira/board?squad=pricing&sprints=6` | Histórias e sprints reais do quadro do squad (cache de 5 min) |
+| `GET /api/github/prs?squad=pricing&sprints=6` | PRs do squad. **Hoje simulados a partir do Jira real** (`source: "simulado"`) enquanto o token do GitHub aguarda aprovação |
 
 - Squads ligados ao Jira ficam em `SQUAD_BOARDS` (`api/_lib/jira.ts`). Hoje só **Pricing** (quadro 8075).
 - Critérios de aceite: vêm do campo próprio do Jira, descoberto pelo nome ou definido em `JIRA_AC_FIELD`. Se a história não tiver esse campo, são lidos da seção "Critérios de aceite" da descrição.
 - Qualidade da spec: heurística determinística (critérios, formato testável, descrição, pontos, épico). Ainda sem LLM.
 - **Local:** crie o `.env.local` a partir do [`.env.example`](.env.example) e rode `npm run dev`. Um plugin do Vite executa as funções de `api/`, sem precisar do `vercel dev`.
-- Na aba **GitHub × Jira**, o seletor **Simulado | Jira · Pricing** alterna entre o mock e os dados reais.
+- Nas abas **GitHub por Dev** e **GitHub × Jira**, o seletor **Simulado | Pricing** alterna entre o mock do protótipo e os dados de Pricing.
+- PRs simulados: cada história real gera PRs do responsável, na sprint dela, cerca de 1,2 PR por ponto (`api/_lib/githubSim.ts`). Quando o GitHub real entrar, o endpoint mantém o mesmo formato com `source: "github"`.
+- `shared/`: código usado tanto pelo navegador quanto por `api/` (o navegador não pode importar de `api/`).

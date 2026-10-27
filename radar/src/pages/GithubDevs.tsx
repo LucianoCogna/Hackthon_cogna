@@ -29,6 +29,8 @@ import type { Dev, PullRequest } from '@/mocks/types';
 import { expectedReviewMin, groupBy, mean, prRisk, prSize, reviewRatio, sum } from '@/lib/metrics';
 import { fmtDate, fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { useSourceSwitch } from '@/components/SourceSwitch';
+import GithubDevsLive from './GithubDevsLive';
 
 type Row = {
   dev: Dev;
@@ -85,7 +87,7 @@ const aiColor = (pct: number) => {
   return `color-mix(in srgb, var(--ai) ${Math.round(t * 100)}%, var(--human))`;
 };
 
-export default function GithubDevs() {
+function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
   const scope = useScope();
   const { persona } = useApp();
   const [seniority, setSeniority] = useState('all');
@@ -152,6 +154,7 @@ export default function GithubDevs() {
         eyebrow="GitHub por Dev"
         title="Quem está entregando, e como"
         subtitle={<>PRs, tamanho, tempo de aprovação e uso de IA por pessoa. Período: <span className="num text-text">{scope.scopeLabel}</span>.</>}
+        actions={switcher}
       />
 
       {me && (
@@ -506,4 +509,12 @@ function DevSheet({ devId, onClose }: { devId: string | null; onClose: () => voi
       )}
     </Sheet>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Fonte de dados: simulado (protótipo) ou Pricing (pontos reais do Jira + PRs simulados a partir dele)
+// ---------------------------------------------------------------------------
+export default function GithubDevs() {
+  const [source, switcher] = useSourceSwitch('radar.github.source', 'Pricing · Jira');
+  return source === 'live' ? <GithubDevsLive switcher={switcher} /> : <GithubDevsMock switcher={switcher} />;
 }

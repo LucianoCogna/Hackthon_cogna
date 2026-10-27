@@ -27,7 +27,7 @@ import type { PullRequest, Story } from '@/mocks/types';
 import { groupBy, mean, prRisk, prSize, storyAdherence, sum } from '@/lib/metrics';
 import { fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { Tabs } from '@/components/ui/misc';
+import { useSourceSwitch } from '@/components/SourceSwitch';
 import GithubJiraLive from './GithubJiraLive';
 
 const adhColor = (v: number | null) =>
@@ -418,36 +418,7 @@ export function AuditDialog({ row, onClose }: { row: Row | null; onClose: () => 
 // ---------------------------------------------------------------------------
 // Fonte de dados: simulado (protótipo) ou Jira real (por enquanto, só Pricing)
 // ---------------------------------------------------------------------------
-type Source = 'mock' | 'jira';
-const SOURCE_KEY = 'radar.jira.source';
-
-function readSource(): Source {
-  try {
-    return localStorage.getItem(SOURCE_KEY) === 'jira' ? 'jira' : 'mock';
-  } catch {
-    return 'mock';
-  }
-}
-
 export default function GithubJira() {
-  const [source, setSource] = useState<Source>(readSource);
-  const change = (v: Source) => {
-    setSource(v);
-    try {
-      localStorage.setItem(SOURCE_KEY, v);
-    } catch {
-      /* ignore */
-    }
-  };
-  const switcher = (
-    <Tabs<Source>
-      value={source}
-      onChange={change}
-      items={[
-        { value: 'mock', label: 'Simulado' },
-        { value: 'jira', label: 'Jira · Pricing' },
-      ]}
-    />
-  );
-  return source === 'jira' ? <GithubJiraLive switcher={switcher} /> : <GithubJiraMock switcher={switcher} />;
+  const [source, switcher] = useSourceSwitch('radar.aderencia.source', 'Jira · Pricing');
+  return source === 'live' ? <GithubJiraLive switcher={switcher} /> : <GithubJiraMock switcher={switcher} />;
 }

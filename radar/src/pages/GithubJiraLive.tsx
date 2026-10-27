@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts';
 import {
   AlertTriangle,
+  CheckCircle2,
+  Link2Off,
+  XCircle,
   CircleDashed,
   ExternalLink,
   FileText,
@@ -15,16 +18,18 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useScope } from '@/app/store';
-import { EmptyState, FadeIn, KpiCard, Legend, PageHeader, SquadTag } from '@/components/shared';
+import { AiPctBar, EmptyState, FadeIn, KpiCard, Legend, PageHeader, RiskBadge, SquadTag } from '@/components/shared';
 import { ChartCard, ChartTooltip, axisProps, gridProps } from '@/components/charts';
 import { Card } from '@/components/ui/card';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Progress, Select, Table, Td, Th } from '@/components/ui/misc';
 import { Dialog, DialogContent, Tooltip } from '@/components/ui/overlay';
-import { useJiraBoard, type JiraStory } from '@/lib/jiraApi';
-import { mean, sum } from '@/lib/metrics';
-import { fmtDate, fmtInt, fmtPct } from '@/lib/format';
+import { useGithubPrs, useJiraBoard, type GithubPr, type JiraStory } from '@/lib/jiraApi';
+import { consolidatedStatuses, type CriterionStatus } from '../../shared/criteriaAudit';
+import { ErrorState, LoadingState } from '@/components/ApiStates';
+import { mean, prRisk, prSize, sum } from '@/lib/metrics';
+import { fmtDate, fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 const JIRA_SQUAD = 'pricing';
@@ -32,7 +37,14 @@ const JIRA_SQUAD = 'pricing';
 const catTone: Record<JiraStory['statusCategory'], Tone> = { Done: 'ok', 'In Progress': 'accent', 'To Do': 'neutral' };
 const specColor = (v: number) => (v >= 80 ? 'var(--ok)' : v >= 60 ? 'var(--accent)' : v >= 40 ? 'var(--warn)' : 'var(--risk)');
 
-type SortKey = 'sprint' | 'points' | 'spec' | 'reopen' | 'criteria';
+type SortKey = 'sprint' | 'points' | 'spec' | 'reopen' | 'criteria' | 'prs' | 'adherence';
+
+const adhColor = (v: number | null) =>
+  v === null ? 'var(--muted)' : v >= 80 ? 'var(--ok)' : v >= 60 ? 'var(--warn)' : 'var(--risk)';
+const storyAdherence = (prs: GithubPr[]) => {
+  const v = prs.map((p) => p.jiraAdherence).filter((x): x is number => x !== null);
+  return v.length ? Math.round(mean(v)) : null;
+};
 
 export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode }) {
   const scope = useScope();
@@ -45,6 +57,13 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
 
   const otherSquad = scope.filters.squadId !== 'all' && scope.filters.squadId !== JIRA_SQUAD;
   const data = board.status === 'ok' ? board.data : null;
+  const gh = useGithubPrs(JIRA_SQUAD, 6);
+  const allPrs = useMemo(() => (gh.status === 'ok' ? gh.data.prs : []), [gh.status, gh.data]);
+  const prsByStory = useMemo(() => {
+    const m = new Map<string, GithubPr[]>();
+    for (const p of allPrs) if (p.jiraKey) m.set(p.jiraKey, [...(m.get(p.jiraKey) ?? []), p]);
+    return m;
+  }, [allPrs]);
 
   const stories = useMemo(() => {
     if (!data) return [];
@@ -64,13 +83,15 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
       : sort.key === 'spec' ? s.specQuality
       : sort.key === 'reopen' ? s.reopenCount
       : sort.key === 'criteria' ? s.criteria.length
+      : sort.key === 'prs' ? (prsByStory.get(s.key)?.length ?? 0)
+      : sort.key === 'adherence' ? (storyAdherence(prsByStory.get(s.key) ?? []) ?? 101)
       : (sprintOrder.get(s.sprintId ?? -1) ?? -1);
     const d = sort.dir === 'asc' ? 1 : -1;
     return stories
       .filter((s) => status === 'all' || s.statusCategory === status)
       .filter((s) => !term || `${s.key} ${s.title} ${s.assignee ?? ''}`.toLowerCase().includes(term))
       .sort((a, b) => (val(a) - val(b)) * d || a.key.localeCompare(b.key, undefined, { numeric: true }));
-  }, [stories, q, status, sort, data]);
+  }, [stories, q, status, sort, data, prsByStory]);
 
   const k = {
     stories: stories.length,
@@ -81,6 +102,14 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
     spec: mean(stories.map((s) => s.specQuality)),
     reopened: stories.filter((s) => s.reopenCount > 0).length,
     reopenTotal: sum(stories.map((s) => s.reopenCount)),
+  };
+  const prsInScope = allPrs.filter((p) => sprint === 'all' || p.sprintId === sprint);
+  const linked = stories.map((s) => prsByStory.get(s.key) ?? []).filter((l) => l.length);
+  const kp = {
+    adherence: mean(prsInScope.map((p) => p.jiraAdherence).filter((v): v is number => v !== null)),
+    prsPerStory: mean(linked.map((l) => l.length)),
+    unlinked: prsInScope.length ? (100 * prsInScope.filter((p) => !p.jiraKey).length) / prsInScope.length : 0,
+    prs: prsInScope.length,
   };
 
   const sprintChart = (data?.sprints ?? []).map((s) => ({
@@ -180,7 +209,7 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <KpiCard index={0} icon={<FileText className="h-3.5 w-3.5" />} label="Histórias" value={k.stories} format={fmtInt}
               footnote={`${fmtInt(k.pointsCommitted)} pts comprometidos`} info="Itens do quadro (sem subtarefas e épicos) nas sprints selecionadas. Uma história com transbordo conta na sprint mais recente." />
             <KpiCard index={1} icon={<Rocket className="h-3.5 w-3.5" />} label="Pontos entregues" value={k.pointsDone} format={(v) => `${fmtInt(v)} pts`}
@@ -193,14 +222,31 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
               info="Heurística sem LLM: quantidade de critérios (35), critérios testáveis em Dado/Quando/Então ou 'deve' (20), descrição com contexto (20), story points (15) e épico vinculado (10)." />
             <KpiCard index={4} icon={<RotateCcw className="h-3.5 w-3.5" />} label="Histórias reabertas" value={k.reopened} format={fmtInt}
               footnote={`${k.reopenTotal} idas e vindas`} info="Histórias que saíram de um status concluído e voltaram para o fluxo, segundo o histórico do Jira." />
+            {gh.status === 'ok' && (
+              <>
+                <KpiCard index={5} icon={<GitPullRequest className="h-3.5 w-3.5" />} label="Aderência média PR × história" value={kp.adherence} format={(v) => fmtPct(v)}
+                  tone={kp.adherence < 75 ? 'warn' : undefined} footnote="PRs simulados"
+                  info="% dos critérios de aceite da história encontrados no diff de cada PR. Só PRs de histórias com critérios entram na média." />
+                <KpiCard index={6} label="PRs por história" value={kp.prsPerStory} format={(v) => fmtNum(v, 1)} footnote={`${fmtInt(kp.prs)} PRs no período`}
+                  info="Média de PRs vinculados a cada história que tem ao menos um PR." />
+                <KpiCard index={7} icon={<Link2Off className="h-3.5 w-3.5" />} label="PRs sem história vinculada" value={kp.unlinked} format={(v) => fmtPct(v, 1)}
+                  info="PRs sem chave do Jira (ex.: CRPR-123) no título, na branch ou na descrição." />
+              </>
+            )}
           </div>
 
           <FadeIn delay={0.05} className="mt-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-xs text-muted">
-              <GitPullRequest className="h-4 w-4 text-accent" />
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warn/30 bg-warn/8 px-4 py-3 text-xs text-muted">
+              <GitPullRequest className="h-4 w-4 shrink-0 text-warn" />
               <span>
-                <b className="text-text">Próxima etapa: integração com o GitHub.</b> Aderência PR × história, PRs por história e % de PRs sem
-                história dependem dos PRs vinculados aos cards.
+                {gh.status === 'error' ? (
+                  <>Não foi possível carregar os PRs: {gh.error.message}</>
+                ) : (
+                  <>
+                    <b className="text-text">PRs simulados a partir destas histórias</b> enquanto o token do GitHub aguarda aprovação. Histórias, pontos e
+                    critérios são reais; a aderência de cada PR é simulada sobre os critérios reais da história.
+                  </>
+                )}
               </span>
             </div>
           </FadeIn>
@@ -280,6 +326,8 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
                         <Th>Responsável</Th>
                         {th('sprint', 'Sprint')}
                         {th('points', 'Pontos', 'text-right')}
+                        {th('prs', 'PRs', 'text-right')}
+                        {th('adherence', 'Aderência')}
                         {th('criteria', 'Critérios', 'text-right')}
                         {th('spec', 'Spec')}
                         <Th>Status</Th>
@@ -307,6 +355,10 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
                           <Td className="max-w-[150px] truncate text-xs text-muted" title={s.assignee ?? undefined}>{s.assignee ?? '—'}</Td>
                           <Td className="text-xs text-muted">{s.sprintName ?? '—'}</Td>
                           <Td className="num text-right">{s.points ?? '—'}</Td>
+                          <Td className="num text-right">{prsByStory.get(s.key)?.length ?? 0}</Td>
+                          <Td>
+                            <AdherenceCell value={storyAdherence(prsByStory.get(s.key) ?? [])} />
+                          </Td>
                           <Td className={cn('num text-right', s.criteria.length === 0 && 'text-warn')}>
                             {s.criteriaTemplateUnfilled ? <Badge tone="warn">template vazio</Badge> : s.criteria.length}
                           </Td>
@@ -331,7 +383,7 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
         </>
       )}
 
-      <StoryDialog story={selected} onClose={() => setSelected(null)} />
+      <StoryDialog story={selected} prs={selected ? (prsByStory.get(selected.key) ?? []) : []} onClose={() => setSelected(null)} />
     </div>
   );
 }
@@ -357,49 +409,40 @@ function BucketChart({ data, unit }: { data: { label: string; n: number; color: 
   );
 }
 
-function LoadingState() {
+function AdherenceCell({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-xs text-muted">—</span>;
   return (
-    <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-muted">
-        <Loader2 className="h-4 w-4 animate-spin text-accent" /> Buscando histórias e sprints no Jira…
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-[104px] animate-pulse rounded-xl border border-border bg-surface" />
-        ))}
-      </div>
-      <div className="mt-4 h-[300px] animate-pulse rounded-xl border border-border bg-surface" />
+    <div className="flex w-24 items-center gap-2">
+      <Progress value={value} color={adhColor(value)} />
+      <span className="num w-8 text-right text-xs">{value}%</span>
     </div>
   );
 }
 
-function ErrorState({ error, onRetry }: { error: { message: string; code: number }; onRetry: () => void }) {
-  const hint =
-    error.code === 401
-      ? 'O Jira recusou o e-mail + API token. Gere um novo token em id.atlassian.com → Segurança → Tokens de API e atualize JIRA_USERNAME e JIRA_TOKEN no radar/.env.local (dev) e nas variáveis do projeto na Vercel.'
-      : error.code === 403
-        ? 'O usuário do token não tem acesso a esse quadro no Jira.'
-        : error.code === 0
-          ? 'A API não respondeu. No ambiente local, rode com npm run dev.'
-          : 'Tente de novo em instantes. Se persistir, veja os logs da função na Vercel.';
-  return (
-    <Card className="border-risk/30 p-6">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-risk" />
-        <div className="flex-1">
-          <div className="text-sm font-semibold">Não foi possível carregar os dados do Jira</div>
-          <p className="num mt-1 text-xs text-risk">{error.message}</p>
-          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted">{hint}</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
-            <RefreshCw className="h-3.5 w-3.5" /> Tentar de novo
-          </Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
+const critIcon: Record<CriterionStatus, React.ReactNode> = {
+  ok: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" />,
+  partial: <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />,
+  missing: <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-risk" />,
+};
+const critLabel: Record<CriterionStatus, string> = { ok: 'Atendido', partial: 'Parcial', missing: 'Não encontrado no diff' };
+const critBox: Record<CriterionStatus, string> = {
+  ok: 'border-ok/25 bg-ok/5',
+  partial: 'border-warn/25 bg-warn/5',
+  missing: 'border-risk/25 bg-risk/5',
+};
 
-function StoryDialog({ story, onClose }: { story: JiraStory | null; onClose: () => void }) {
+function StoryDialog({ story, prs, onClose }: { story: JiraStory | null; prs: GithubPr[]; onClose: () => void }) {
+  const adherences = prs.map((p) => p.jiraAdherence).filter((v): v is number => v !== null);
+  const statuses = story && adherences.length ? consolidatedStatuses(story.key, story.criteria.length, adherences) : null;
+  // notas coerentes com o status consolidado da história
+  const notes = [...new Set(prs.flatMap((p) => p.adherenceNotes))].filter((n) => {
+    const m = n.match(/^Critério (\d+)/);
+    if (!m) return !n.startsWith('Todos os critérios') || (statuses?.every((x) => x === 'ok') ?? false);
+    if (!statuses) return false;
+    const st = statuses[Number(m[1]) - 1];
+    return st === 'missing' ? !n.includes('parcialmente') : st === 'partial';
+  });
+  const adh = storyAdherence(prs);
   return (
     <Dialog open={!!story} onOpenChange={(o) => !o && onClose()}>
       {story && (
@@ -427,8 +470,9 @@ function StoryDialog({ story, onClose }: { story: JiraStory | null; onClose: () 
             </a>
           }
         >
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <Stat label="Qualidade da spec (heurística)" value={`${story.specQuality}/100`} color={specColor(story.specQuality)} />
+            <Stat label="Aderência PR × história" value={adh === null ? '—' : `${adh}%`} color={adh === null ? undefined : adhColor(adh)} />
             <Stat label="Reaberturas" value={String(story.reopenCount)} />
             <Stat label="Criada · concluída" value={`${fmtDate(story.created)} · ${story.resolved ? fmtDate(story.resolved) : '—'}`} small />
           </div>
@@ -445,13 +489,13 @@ function StoryDialog({ story, onClose }: { story: JiraStory | null; onClose: () 
           {story.criteria.length ? (
             <ul className="space-y-2">
               {story.criteria.map((c, i) => (
-                <li key={i} className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
-                  <CircleDashed className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                <li key={i} className={cn('flex items-start gap-3 rounded-lg border p-3 text-sm', statuses ? critBox[statuses[i]] : 'border-border')}>
+                  {statuses ? critIcon[statuses[i]] : <CircleDashed className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
                   <span className="flex-1">
                     <span className="num mr-1.5 text-muted">{i + 1}.</span>
                     {c}
                   </span>
-                  <span className="whitespace-nowrap text-[11px] text-muted">aguardando PRs</span>
+                  <span className="whitespace-nowrap text-[11px] text-muted">{statuses ? critLabel[statuses[i]] : 'sem PRs'}</span>
                 </li>
               ))}
             </ul>
@@ -462,9 +506,41 @@ function StoryDialog({ story, onClose }: { story: JiraStory | null; onClose: () 
                 : 'Esta história não tem critérios de aceite no Jira. Sem eles, não dá para auditar se o código entregue bate com o card.'}
             </div>
           )}
-          <p className="mt-4 text-[11px] text-muted">
-            A auditoria critério a critério (atendido / parcial / não encontrado) entra quando os PRs do GitHub forem vinculados a esta história.
-          </p>
+          {notes.length > 0 && (
+            <>
+              <h4 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">Notas da análise</h4>
+              <ul className="space-y-1.5 rounded-lg border border-ai/25 bg-ai-soft p-3 text-sm">
+                {notes.map((n) => (
+                  <li key={n} className="flex gap-2">
+                    <span className="text-ai">›</span>
+                    {n}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h4 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">PRs vinculados ({prs.length})</h4>
+          {prs.length ? (
+            <div className="space-y-2">
+              {prs.map((p) => (
+                <div key={p.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{p.title}</div>
+                    <div className="num text-[11px] text-muted">
+                      {p.repo} #{p.number} · {fmtInt(prSize(p))} linhas · revisão {fmtDuration(p.reviewTimeMin)}
+                      {p.jiraAdherence !== null && ` · aderência ${p.jiraAdherence}%`} · {p.mergedAt ? 'mergeado' : 'aberto'}
+                    </div>
+                  </div>
+                  <AiPctBar value={p.aiGeneratedPct} />
+                  <RiskBadge score={prRisk(p)} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Nenhum PR vinculado a esta história.</p>
+          )}
+          <p className="mt-4 text-[11px] text-muted">PRs simulados a partir da história enquanto o token do GitHub aguarda aprovação.</p>
         </DialogContent>
       )}
     </Dialog>
