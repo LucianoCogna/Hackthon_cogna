@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import {
   Archive,
   ArrowRight,
-  Copy,
   Loader2,
   Settings2,
   Sparkles,
@@ -246,7 +245,7 @@ Você é o pr-auditor do KiroCópter. Calcule o PR Risk Score (0-100):
 
 Faixas: 0-39 saudável, 40-69 atenção, 70+ crítico.
 
-Colete dados por dois caminhos (nunca trave): git diff/log somente leitura para linhas e arquivos, pedindo ao usuário o que o git não dá (% IA, tempo de revisão, aderência, revisão assistida, testes); ou calcule a partir dos números colados. Responda em pt-BR com o score, a faixa, a lista de motivos (cada parcela que pesou) e — se 70+ — um pedido de re-review pronto para colar. Nunca invente números: peça ou assuma o default e diga qual assumiu.
+Colete dados por dois caminhos (nunca trave): git diff/log somente leitura para linhas e arquivos, pedindo ao usuário o que o git não dá (% IA, tempo de revisão, aderência, revisão assistida, testes); ou calcule a partir dos números colados. Se o PR tiver a secao Uso de IA (para o RADAR) com tarefa-principal, modelo-predominante, ia-pct e revisao-assistida (campos auto-declarados, nao telemetria), leia-os e cruze tarefa x modelo com a skill kirocop-sugere-modelo, apontando modelo inadequado quando houver.\n\nResponda em pt-BR com o score, a faixa, a lista de motivos (cada parcela que pesou) e — se 70+ — um pedido de re-review pronto para colar. Nunca invente números: peça ou assuma o default e diga qual assumiu.
 `,
   },
 ];
@@ -543,36 +542,12 @@ const buildZipFiles = (): Record<string, string> => {
   return files;
 };
 
-const KIT_TREE = `.kiro/
-├─ agents/
-${AGENTS.map((a) => `│  ├─ ${a.id}.md`).join("\n")}
-├─ steering/
-│  ├─ radar-crew.md
-│  └─ kirocop-onboarding.md
-├─ skills/
-${SKILLS_INFO.map((s) => `│  ├─ ${s.id}/SKILL.md`).join("\n")}
-├─ hooks/
-│  ├─ pr-size-guard.json
-│  └─ scripts/pr-size-guard.mjs
-├─ specs/
-│  └─ exemplo-checkout-demo001/  (requirements · design · tasks)
-└─ README.md
-.github/
-└─ pull_request_template.md`;
 
 
 
 export default function Crew() {
   const [zipping, setZipping] = useState(false);
 
-  const copy = (text: string, msg: string, description?: string) => {
-    if (!navigator.clipboard)
-      return toast.error("Área de transferência indisponível");
-    navigator.clipboard
-      .writeText(text)
-      .then(() => toast.success(msg, { description }))
-      .catch(() => toast.error("Não foi possível copiar"));
-  };
 
   const downloadKit = async () => {
     setZipping(true);
@@ -584,7 +559,7 @@ export default function Crew() {
       // template de PR fica em .github/ (fora de .kiro/)
       zip.file(
         ".github/pull_request_template.md",
-        `## O que este PR faz\n\n## Card do Jira\nCloses \n\n## % de código gerado por IA\nIA: ___%  ·  revisão assistida por IA? ( ) sim  ( ) não\n\n## Checklist\n- [ ] Todos os critérios de aceite do card estão cobertos no diff\n- [ ] Testes adicionados/atualizados para o que mudou\n- [ ] Sem secrets ou PII no código/commits\n- [ ] PR em tamanho gerenciável (uma tarefa da spec por PR, quando possível)\n- [ ] Rodei o pr-auditor do KiroCópter e tratei os pontos críticos\n\n## Evidência\n`,
+        `## O que este PR faz\n\n## Card do Jira\nCloses \n\n## Uso de IA (para o RADAR)\n<!-- Campos estruturados e auto-declarados. O pr-auditor e scripts de CI leem daqui; nao e telemetria. Nao remova as chaves. -->\n- tarefa-principal: feature        <!-- commit | explicar-codigo | gerar-testes | refatorar | feature | spec | debug | review -->\n- modelo-predominante: Sonnet      <!-- Haiku | Sonnet | Opus | Fable -->\n- ia-pct: 70\n- revisao-assistida: sim           <!-- sim | nao -->\n\n## Checklist\n- [ ] Todos os critérios de aceite do card estão cobertos no diff\n- [ ] Testes adicionados/atualizados para o que mudou\n- [ ] Sem secrets ou PII no código/commits\n- [ ] PR em tamanho gerenciável (uma tarefa da spec por PR, quando possível)\n- [ ] Rodei o pr-auditor do KiroCópter e tratei os pontos críticos\n\n## Evidência\n`,
       );
       const blob = await zip.generateAsync({ type: "blob" });
       const a = document.createElement("a");
@@ -733,7 +708,6 @@ export default function Crew() {
             <div className="mt-3 flex gap-2"><Badge tone="ok">SPEC</Badge><Badge tone="ok">BUILD</Badge><Badge tone="ok">RUN</Badge></div>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button variant="subtle" onClick={() => copy(KIT_TREE, "Estrutura do kit copiada")}><Copy className="h-4 w-4" /> Copiar árvore</Button>
             <Button variant="primary" onClick={downloadKit} disabled={zipping}>{zipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />} Recrutar o esquadrão</Button>
           </div>
         </Card>
