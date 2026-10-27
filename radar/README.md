@@ -66,3 +66,18 @@ O projeto `radar-cogna` na Vercel está ligado a este repositório, com **Root D
 - cada PR ganha um deploy de preview automático, com o link comentado no PR
 
 O `vercel.json` desta pasta configura o build do Vite e o fallback de SPA, para que um F5 em rotas como `/radar` não dê 404.
+
+## Back-end (API)
+
+Vercel Functions em [`api/`](api/). O token do Jira fica só no servidor; o navegador chama `/api/...`.
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/jira/health` | Confere as credenciais, o campo de critérios de aceite e o acesso aos quadros |
+| `GET /api/jira/board?squad=pricing&sprints=6` | Histórias e sprints reais do quadro do squad (cache de 5 min) |
+
+- Squads ligados ao Jira ficam em `SQUAD_BOARDS` (`api/_lib/jira.ts`). Hoje só **Pricing** (quadro 8075).
+- Critérios de aceite: vêm do campo próprio do Jira, descoberto pelo nome ou definido em `JIRA_AC_FIELD`. Se a história não tiver esse campo, são lidos da seção "Critérios de aceite" da descrição.
+- Qualidade da spec: heurística determinística (critérios, formato testável, descrição, pontos, épico). Ainda sem LLM.
+- **Local:** crie o `.env.local` a partir do [`.env.example`](.env.example) e rode `npm run dev`. Um plugin do Vite executa as funções de `api/`, sem precisar do `vercel dev`.
+- Na aba **GitHub × Jira**, o seletor **Simulado | Jira · Pricing** alterna entre o mock e os dados reais.

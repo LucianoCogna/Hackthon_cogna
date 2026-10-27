@@ -27,6 +27,8 @@ import type { PullRequest, Story } from '@/mocks/types';
 import { groupBy, mean, prRisk, prSize, storyAdherence, sum } from '@/lib/metrics';
 import { fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { Tabs } from '@/components/ui/misc';
+import GithubJiraLive from './GithubJiraLive';
 
 const adhColor = (v: number | null) =>
   v === null ? 'var(--muted)' : v >= 80 ? 'var(--ok)' : v >= 60 ? 'var(--warn)' : 'var(--risk)';
@@ -36,7 +38,7 @@ const statusLabel = { Done: 'Concluída', 'In Progress': 'Em andamento', 'To Do'
 
 type Row = { story: Story; prs: PullRequest[]; adherence: number | null };
 
-export default function GithubJira() {
+function GithubJiraMock({ switcher }: { switcher: React.ReactNode }) {
   const scope = useScope();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
@@ -124,7 +126,12 @@ export default function GithubJira() {
         eyebrow="GitHub × Jira"
         title="O código entregue bate com a história?"
         subtitle="Aderência dos PRs aos critérios de aceite, idas e vindas de requisito e qualidade das specs. A análise PR × história é feita por IA (simulada neste protótipo)."
-        actions={<AiSeal />}
+        actions={
+          <>
+            {switcher}
+            <AiSeal />
+          </>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -406,4 +413,41 @@ export function AuditDialog({ row, onClose }: { row: Row | null; onClose: () => 
       )}
     </Dialog>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Fonte de dados: simulado (protótipo) ou Jira real (por enquanto, só Pricing)
+// ---------------------------------------------------------------------------
+type Source = 'mock' | 'jira';
+const SOURCE_KEY = 'radar.jira.source';
+
+function readSource(): Source {
+  try {
+    return localStorage.getItem(SOURCE_KEY) === 'jira' ? 'jira' : 'mock';
+  } catch {
+    return 'mock';
+  }
+}
+
+export default function GithubJira() {
+  const [source, setSource] = useState<Source>(readSource);
+  const change = (v: Source) => {
+    setSource(v);
+    try {
+      localStorage.setItem(SOURCE_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
+  const switcher = (
+    <Tabs<Source>
+      value={source}
+      onChange={change}
+      items={[
+        { value: 'mock', label: 'Simulado' },
+        { value: 'jira', label: 'Jira · Pricing' },
+      ]}
+    />
+  );
+  return source === 'jira' ? <GithubJiraLive switcher={switcher} /> : <GithubJiraMock switcher={switcher} />;
 }
