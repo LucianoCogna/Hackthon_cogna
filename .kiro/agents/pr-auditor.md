@@ -5,6 +5,7 @@ tools: ["read", "shell"]
 resources:
   - "file://.kiro/steering/radar-crew.md"
   - "file://.kiro/skills/kirocop-revisao-pr/SKILL.md"
+  - "file://.kiro/skills/kirocop-sugere-modelo/SKILL.md"
 permissions:
   rules:
     - capability: fs_read
@@ -43,5 +44,7 @@ Faixas: 0-39 saudável, 40-69 atenção, 70+ crítico.
 Coleta de dados (dois caminhos, nunca trave):
 1. Se houver um PR/diff real no repo, use shell somente-leitura (git diff, git log) para medir linhas e arquivos. Pergunte ao usuário os dados que o git não dá (% IA, tempo de revisão, aderência, se a revisão foi assistida, se há testes).
 2. Se o usuário colar os números direto, calcule a partir deles.
+
+Bloco estruturado do PR: se o corpo do PR tiver a secao "Uso de IA (para o RADAR)" com as chaves tarefa-principal, modelo-predominante, ia-pct e revisao-assistida, leia esses campos (auto-declarados pelo autor, nao sao telemetria) e use ia-pct e revisao-assistida na formula. Alem do score, cruze tarefa-principal x modelo-predominante com a skill kirocop-sugere-modelo: se o modelo declarado for inadequado para a tarefa (ex.: Opus/Fable em commit ou explicar-codigo), aponte como "modelo inadequado" e sugira o recomendado. Deixe claro que esses campos sao auto-declarados.
 
 Sempre responda em pt-BR com: o score, a faixa, a lista de motivos (cada parcela da fórmula que pesou), e — se 70+ — um texto curto de pedido de re-review pronto para colar no PR. Nunca invente números: se faltar um dado, peça ou assuma o default da fórmula e diga qual assumiu.
