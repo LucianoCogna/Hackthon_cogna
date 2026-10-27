@@ -7,6 +7,8 @@ export class JiraError extends Error {
   constructor(
     message: string,
     public status = 500,
+    /** 'auth' quando falta o código de acesso do RADAR (diferente de credencial do Jira recusada) */
+    public code?: 'auth',
   ) {
     super(message);
   }
@@ -252,20 +254,17 @@ export function query(req: Req) {
   return new URL(req.url ?? '/', 'http://localhost').searchParams;
 }
 
-export function send(res: Res, status: number, body: unknown, cacheSeconds = 0) {
+export function send(res: Res, status: number, body: unknown) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader(
-    'Cache-Control',
-    cacheSeconds > 0 && status === 200
-      ? `public, s-maxage=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`
-      : 'no-store',
-  );
+  // Dados restritos: nunca no cache do CDN (ele não diferencia quem tem o código de acesso).
+  // O cache de 5 min fica em memória no servidor (cached) e no navegador (useApi).
+  res.setHeader('Cache-Control', 'private, no-store');
   res.end(JSON.stringify(body));
 }
 
 export function sendError(res: Res, e: unknown) {
   const err = e instanceof JiraError ? e : new JiraError((e as Error)?.message ?? 'Erro inesperado');
   if (!(e instanceof JiraError)) console.error('[jira]', e);
-  send(res, err.status, { error: err.message, status: err.status });
+  send(res, err.status, { error: err.message, status: err.status, ...(err.code ? { code: err.code } : {}) });
 }

@@ -1,6 +1,9 @@
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, KeyRound, Loader2, Lock, RefreshCw } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
+import { Input } from './ui/misc';
+import { getAccessCode, setAccessCode, type ApiError } from '@/lib/jiraApi';
 
 export function LoadingState({ label = 'Buscando histórias e sprints no Jira…' }: { label?: string }) {
   return (
@@ -18,7 +21,8 @@ export function LoadingState({ label = 'Buscando histórias e sprints no Jira…
   );
 }
 
-export function ErrorState({ error, onRetry }: { error: { message: string; code: number }; onRetry: () => void }) {
+export function ErrorState({ error, onRetry }: { error: ApiError; onRetry: () => void }) {
+  if (error.auth) return <AccessGate invalid={!!getAccessCode()} />;
   const hint =
     error.code === 401
       ? 'O Jira recusou o e-mail + API token. Gere um novo token em id.atlassian.com → Segurança → Tokens de API e atualize JIRA_USERNAME e JIRA_TOKEN no radar/.env.local (dev) e nas variáveis do projeto na Vercel.'
@@ -38,6 +42,52 @@ export function ErrorState({ error, onRetry }: { error: { message: string; code:
           <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
             <RefreshCw className="h-3.5 w-3.5" /> Tentar de novo
           </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Pede o código de acesso aos dados reais. O modo "Simulado" continua aberto sem código. */
+export function AccessGate({ invalid }: { invalid: boolean }) {
+  const [code, setCode] = useState('');
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim()) return;
+    setAccessCode(code.trim());
+    // recarrega a página: todas as consultas da aba (Jira e PRs) voltam já com o código
+    window.location.reload();
+  };
+  return (
+    <Card className="mx-auto max-w-lg border-accent/30 p-6">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-accent/30 bg-accent-soft text-accent">
+          <Lock className="h-5 w-5" />
+        </div>
+        <div className="flex-1">
+          <div className="text-sm font-semibold">Dados reais restritos</div>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Estes números vêm do Jira da Cogna. Informe o código de acesso do RADAR para ver. Sem o código, use o modo <b>Simulado</b>.
+          </p>
+          {invalid && <p className="mt-2 text-xs font-medium text-risk">O código salvo neste navegador não é válido. Digite de novo.</p>}
+          <form onSubmit={submit} className="mt-3 flex gap-2">
+            <div className="relative flex-1">
+              <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted" />
+              <Input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Código de acesso"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="pl-9"
+                aria-label="Código de acesso"
+                autoFocus
+              />
+            </div>
+            <Button variant="primary" type="submit" disabled={!code.trim()}>
+              Entrar
+            </Button>
+          </form>
         </div>
       </div>
     </Card>

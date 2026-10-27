@@ -77,6 +77,7 @@ Vercel Functions em [`api/`](api/). O token do Jira fica só no servidor; o nave
 | `GET /api/jira/board?squad=pricing&sprints=6` | Histórias e sprints reais do quadro do squad (cache de 5 min) |
 | `GET /api/github/prs?squad=pricing&sprints=6` | PRs do squad. **Hoje simulados a partir do Jira real** (`source: "simulado"`) enquanto o token do GitHub aguarda aprovação |
 
+- **Acesso restrito:** as rotas `/api` exigem o código `RADAR_ACCESS_CODE` no cabeçalho `x-radar-access`. Nas telas com dados reais, quem não tiver o código vê um campo para digitá-lo, que fica salvo no navegador. O modo **Simulado** continua aberto. As respostas usam `Cache-Control: private, no-store`, para o CDN nunca servir dados reais a quem não tem o código.
 - Squads ligados ao Jira ficam em `SQUAD_BOARDS` (`api/_lib/jira.ts`). Hoje só **Pricing** (quadro 8075).
 - Critérios de aceite: vêm do campo próprio do Jira, descoberto pelo nome ou definido em `JIRA_AC_FIELD`. Se a história não tiver esse campo, são lidos da seção "Critérios de aceite" da descrição.
 - Qualidade da spec: heurística determinística (critérios, formato testável, descrição, pontos, épico). Ainda sem LLM.

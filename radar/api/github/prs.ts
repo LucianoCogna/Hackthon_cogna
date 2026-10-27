@@ -5,12 +5,14 @@
 import { query, send, sendError, type Req, type Res } from '../_lib/jira.js';
 import { boardParams, getJiraBoard } from '../_lib/jiraBoard.js';
 import { simulatePrs } from '../_lib/githubSim.js';
+import { requireAccess } from '../_lib/auth.js';
 
 export default async function handler(req: Req, res: Res) {
   try {
+    requireAccess(req);
     const { squadId, sprintCount } = boardParams(query(req));
     const board = await getJiraBoard(squadId, sprintCount);
-    send(res, 200, simulatePrs(board), 300);
+    send(res, 200, simulatePrs(board));
   } catch (e) {
     sendError(res, e);
   }
