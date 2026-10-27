@@ -6,8 +6,10 @@ import {
   SPRINT_FIELD,
   SP_FIELD,
   SQUAD_BOARDS,
+  TEMPLATE_HINT,
   acceptanceCriteriaField,
   adfToText,
+  contextLength,
   cached,
   criteriaFromDescription,
   criteriaFromField,
@@ -27,7 +29,7 @@ type RawSprint = { id: number; name: string; state: string; startDate?: string; 
 type RawIssue = {
   key: string;
   fields: Record<string, any>;
-  changelog?: { histories?: { items: { field: string; fromString?: string; toString?: string }[] }[] };
+  changelog?: { histories?: { created?: string; items: { field: string; fromString?: string; toString?: string }[] }[] };
 };
 
 const CACHE_MS = 5 * 60_000;
@@ -59,6 +61,24 @@ async function sprintIssues(boardId: number, sprintId: number, fields: string[])
   }
   return all;
 }
+
+const isCancelled = (status: string | undefined) => /cancel/i.test(status ?? '');
+
+/** Data (AAAA-MM-DD) da última vez que o item entrou num status concluído; fallback: data de resolução. */
+function doneAt(issue: RawIssue, statusCat: Record<string, string>): string | null {
+  let last: string | null = null;
+  for (const h of issue.changelog?.histories ?? []) {
+    for (const it of h.items) {
+      if (it.field === 'status' && statusCat[(it.toString ?? '').toLowerCase()] === 'done' && h.created) {
+        const d = h.created.slice(0, 10);
+        if (!last || d > last) last = d;
+      }
+    }
+  }
+  return last ?? (issue.fields.resolutiondate ? String(issue.fields.resolutiondate).slice(0, 10) : null);
+}
+
+const addDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
 
 const toCategory = (key: string | undefined): JiraStatusCategory =>
   key === 'done' ? 'Done' : key === 'indeterminate' ? 'In Progress' : 'To Do';
@@ -122,15 +142,16 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
       assignee: f.assignee?.displayName ?? null,
       criteria,
       criteriaSource: fieldCriteria.length ? 'campo' : descCriteria.length ? 'descrição' : null,
+      criteriaTemplateUnfilled: criteria.length === 0 && TEMPLATE_HINT.test(adfToText(f.description)),
       specQuality: specQualityHeuristic({
         criteria,
-        descriptionLength: adfToText(f.description).trim().length,
+        descriptionLength: contextLength(f.description),
         hasPoints: points !== null,
         hasEpic: !!epicKey,
       }),
       reopenCount,
       created: (f.created ?? '').slice(0, 10),
-      resolved: f.resolutiondate ? String(f.resolutiondate).slice(0, 10) : null,
+      resolved: f.status?.statusCategory?.key === 'done' ? doneAt(issue, statusCat) : null,
       url: `${base}/browse/${issue.key}`,
     });
   }
@@ -140,10 +161,12 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
     const end = (s.completeDate ?? s.endDate ?? '').slice(0, 10);
     const start = (s.startDate ?? '').slice(0, 10);
     const pts = (x: RawIssue) => (typeof x.fields[SP_FIELD] === 'number' ? x.fields[SP_FIELD] : 0);
+    // entregue na sprint = concluído (não cancelado) entre o início e o fechamento da sprint (+1 dia de tolerância)
     const doneInSprint = (x: RawIssue) => {
-      if (x.fields.status?.statusCategory?.key !== 'done') return false;
-      const r = String(x.fields.resolutiondate ?? '').slice(0, 10);
-      return s.state === 'active' ? true : !!r && (!start || r >= start) && (!end || r <= end);
+      if (x.fields.status?.statusCategory?.key !== 'done' || isCancelled(x.fields.status?.name)) return false;
+      const d = doneAt(x, statusCat);
+      if (!d) return false;
+      return (!start || d >= start) && (s.state === 'active' || !end || d <= addDays(end, 1));
     };
     return {
       id: s.id,

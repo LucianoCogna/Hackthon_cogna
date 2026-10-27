@@ -29,6 +29,8 @@ export type JiraStory = {
   criteria: string[];
   /** de onde vieram os critérios: campo próprio do Jira, seção da descrição, ou não encontrados */
   criteriaSource: 'campo' | 'descrição' | null;
+  /** a descrição tem o template de critérios, mas ninguém preencheu */
+  criteriaTemplateUnfilled: boolean;
   /** 0–100, heurística determinística (sem LLM) */
   specQuality: number;
   /** quantas vezes saiu de um status "concluído" e voltou para o fluxo */

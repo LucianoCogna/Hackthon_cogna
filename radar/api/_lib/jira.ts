@@ -107,51 +107,115 @@ export function adfToText(node: unknown): string {
   return BLOCKS.has(n.type ?? '') ? inner.trim() + '\n' : inner;
 }
 
-/** Itens de lista de um documento ADF (ou linhas, se não houver lista). */
-function adfItems(node: unknown): string[] {
-  if (typeof node === 'string') return splitLines(node);
-  const items: string[] = [];
-  const walk = (n: Adf) => {
-    if (n.type === 'listItem' || n.type === 'taskItem') {
-      const t = adfToText(n).replace(/\s+/g, ' ').trim();
-      if (t) items.push(t);
-      return;
-    }
-    (n.content ?? []).forEach(walk);
-  };
-  walk(node as Adf);
-  return items.length ? items : splitLines(adfToText(node));
+// ---------------------------------------------------------------------------
+// Critérios de aceite a partir de texto. A API Agile devolve wiki markup do Jira
+// ("h3. CA01", "*Dado que*", "# item"); a API v3 devolve ADF (convertido antes em texto).
+// ---------------------------------------------------------------------------
+const AC_HEADING = /crit[ée]rios? de aceit|acceptance criteria|^aceite\b/i;
+// Seções que encerram os critérios (inclui o bloco de DoR do template: "[Condição mínima para iniciar]")
+const STOP_HEADING =
+  /^(\[?condi[çc][ãa]o m[íi]nima|dor\b|dod\b|definition of (ready|done)|crit[ée]rios? de pronto|defini[çc][ãa]o de pronto|pr[ée]-?requisitos|observa[çc][õo]es|notas?\b|fora de escopo|premissas?|depend[êe]ncias|riscos?\b|anexos?|refer[êe]ncias|regras de neg[óo]cio|links?\b|evid[êe]ncias)/i;
+const SEPARATOR = /^[-=_*~]{3,}$/;
+/** Instruções do template de história que ninguém preencheu (não são critérios). */
+export const TEMPLATE_HINT =
+  /se a hist[óo]ria envolver c[óo]digo|adapte os crit[ée]rios de aceite|^\(?(exemplo|ex\.)[:)]|preencher aqui|descreva aqui|<[^>]{3,40}>/i;
+const CA_TITLE = /^(ca|crit[ée]rio|cen[áa]rio|ac)\s*[-#.]?\s*\d+/i;
+const GIVEN = /^(dado|dada|given)\b/i;
+const STEP = /^(quando|ent[ãa]o|e|mas|when|then|and|but)\b/i;
+const THEN = /\b(ent[ãa]o|then)\b/i;
+
+/** Limpa uma linha de wiki markup/ADF. Diz também se ela era um título (h1.–h6.). */
+function cleanLine(raw: string) {
+  const heading = /^\s*h[1-6]\.\s*/i.test(raw);
+  const text = raw
+    .replace(/^\s*h[1-6]\.\s*/i, '')
+    .replace(/\{color(:[^}]*)?\}|\{noformat\}|\{code(:[^}]*)?\}|\{quote\}|\{panel(:[^}]*)?\}/gi, '')
+    .replace(/\[([^|\]]+)\|[^\]]+\]/g, '$1')
+    .replace(/^\s*(?:[-*#•]+|\d+[.)]|\[[ x]\])\s+/i, '')
+    .replace(/^\s*-(?=\p{L})/u, '')
+    .replace(/(^|\s)[*_+]+(?=\S)/g, '$1')
+    .replace(/(\S)[*_+]+(?=\s|$|[,.:;!?)])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { text, heading };
 }
 
-const splitLines = (text: string) =>
-  text
-    .split(/\n+/)
-    .map((l) => l.replace(/^\s*([-*•]|\d+[.)]|\[[ x]\])\s*/i, '').trim())
-    .filter((l) => l.length > 3);
+/**
+ * Agrupa linhas em critérios: cada "CA01 …" (ou título) com seu Dado/Quando/Então vira um critério;
+ * cenários Gherkin sem título também; linhas soltas ("O sistema deve…") viram um critério cada.
+ */
+export function groupCriteria(lines: string[]): string[] {
+  const out: string[] = [];
+  let cur: { title?: string; parts: string[]; hasThen: boolean } | null = null;
+  const flush = () => {
+    if (cur) {
+      const body = cur.parts.join(' ');
+      const t = cur.title && body ? `${cur.title}: ${body}` : cur.title || body;
+      if (t.length > 3) out.push(t);
+    }
+    cur = null;
+  };
+  for (const raw of lines) {
+    const { text, heading } = cleanLine(raw);
+    if (!text || SEPARATOR.test(text) || TEMPLATE_HINT.test(text)) continue;
+    if (STOP_HEADING.test(text) && (heading || text.length < 60)) break;
+    if (CA_TITLE.test(text) || (heading && text.length < 120)) {
+      flush();
+      cur = { title: text.replace(/\s*[-–:]\s*$/, ''), parts: [], hasThen: false };
+    } else if (GIVEN.test(text)) {
+      // novo cenário sem título fecha o anterior; dentro de um CA titulado, os cenários ficam juntos
+      if (cur && !cur.title && cur.parts.length && cur.hasThen) flush();
+      cur ??= { parts: [], hasThen: false };
+      cur.parts.push(text);
+      cur.hasThen ||= THEN.test(text);
+    } else if (STEP.test(text) && cur) {
+      cur.parts.push(text);
+      cur.hasThen ||= THEN.test(text);
+    } else if (cur?.title) {
+      cur.parts.push(text); // continuação do CA: descrição, notas e sub-itens ("Preço vigente.", "Gap atual…")
+    } else if (cur && (/:$/.test(cur.parts.at(-1) ?? '') || /;$/.test(text) || text.length < 50)) {
+      cur.parts.push(text); // sub-item de um cenário sem título
+    } else {
+      flush();
+      if (!/:\s*$/.test(text)) out.push(text); // linha de introdução ("Os critérios são:") não é critério
+    }
+  }
+  flush();
+  return out
+    .filter((c) => c.length > 3)
+    .map((c) => (c.length > 700 ? c.slice(0, 697) + '…' : c))
+    .slice(0, 20);
+}
 
-const AC_HEADING = /crit[ée]rios? de aceit|acceptance criteria|^aceite/i;
+const toLines = (value: unknown) => adfToText(value).split(/\r?\n/);
 
-/** Extrai os critérios da seção "Critérios de aceite" da descrição (fallback quando não há campo próprio). */
+/** Critérios da seção "Critérios de aceite" da descrição; sem a seção, a partir do primeiro "Dado". */
 export function criteriaFromDescription(description: unknown): string[] {
   if (!description) return [];
-  if (typeof description === 'string') {
-    const idx = description.search(AC_HEADING);
-    return idx < 0 ? [] : splitLines(description.slice(idx).split(/\n/).slice(1).join('\n')).slice(0, 15);
-  }
-  const blocks = (description as Adf).content ?? [];
-  const start = blocks.findIndex((b) => AC_HEADING.test(adfToText(b)));
-  if (start < 0) return [];
-  const out: string[] = [];
-  for (const b of blocks.slice(start + 1)) {
-    if (b.type === 'heading') break;
-    out.push(...adfItems(b));
-  }
-  return out.slice(0, 15);
+  const lines = toLines(description);
+  const idx = lines.findIndex((l) => AC_HEADING.test(cleanLine(l).text));
+  if (idx >= 0) return groupCriteria(lines.slice(idx + 1));
+  const given = lines.findIndex((l) => GIVEN.test(cleanLine(l).text));
+  return given >= 0 ? groupCriteria(lines.slice(given)) : [];
 }
 
+/** Tamanho do contexto da história: texto da descrição antes da seção de critérios (sem o template). */
+export function contextLength(description: unknown): number {
+  const lines = toLines(description);
+  const idx = lines.findIndex((l) => AC_HEADING.test(cleanLine(l).text));
+  return (idx >= 0 ? lines.slice(0, idx) : lines)
+    .map((l) => cleanLine(l).text)
+    .filter((t) => t && !TEMPLATE_HINT.test(t))
+    .join(' ').length;
+}
+
+/** Critérios do campo próprio do Jira (texto, wiki markup ou ADF). */
 export function criteriaFromField(value: unknown): string[] {
   if (value == null) return [];
-  return adfItems(value).slice(0, 15);
+  const lines = toLines(value);
+  const first = lines.findIndex((l) => cleanLine(l).text);
+  if (first >= 0 && AC_HEADING.test(cleanLine(lines[first]).text)) lines.splice(0, first + 1);
+  return groupCriteria(lines);
 }
 
 /**

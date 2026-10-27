@@ -77,6 +77,7 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
     pointsDone: sum(sprintsShown.map((s) => s.pointsDone)),
     pointsCommitted: sum(sprintsShown.map((s) => s.pointsCommitted)),
     withCriteria: stories.length ? (100 * stories.filter((s) => s.criteria.length > 0).length) / stories.length : 0,
+    templateUnfilled: stories.filter((s) => s.criteriaTemplateUnfilled).length,
     spec: mean(stories.map((s) => s.specQuality)),
     reopened: stories.filter((s) => s.reopenCount > 0).length,
     reopenTotal: sum(stories.map((s) => s.reopenCount)),
@@ -95,9 +96,10 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
     { label: '80–100', n: stories.filter((s) => s.specQuality >= 80).length, color: 'var(--ok)' },
   ];
   const criteriaSources = [
-    { label: 'Campo do Jira', n: stories.filter((s) => s.criteriaSource === 'campo').length },
-    { label: 'Na descrição', n: stories.filter((s) => s.criteriaSource === 'descrição').length },
-    { label: 'Sem critérios', n: stories.filter((s) => !s.criteriaSource).length },
+    { label: 'Campo', n: stories.filter((s) => s.criteriaSource === 'campo').length },
+    { label: 'Descrição', n: stories.filter((s) => s.criteriaSource === 'descrição').length },
+    { label: 'Template', n: stories.filter((s) => s.criteriaTemplateUnfilled).length },
+    { label: 'Nenhum', n: stories.filter((s) => !s.criteriaSource && !s.criteriaTemplateUnfilled).length },
   ];
 
   const th = (key: SortKey, label: string, className?: string) => (
@@ -185,7 +187,8 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
               footnote={k.pointsCommitted ? `${fmtPct((100 * k.pointsDone) / k.pointsCommitted)} do comprometido` : undefined}
               info="Story points de itens concluídos dentro do período de cada sprint." />
             <KpiCard index={2} icon={<ListChecks className="h-3.5 w-3.5" />} label="Com critérios de aceite" value={k.withCriteria} format={(v) => fmtPct(v)}
-              tone={k.withCriteria < 60 ? 'warn' : undefined} info="Histórias com critérios no campo próprio do Jira ou numa seção 'Critérios de aceite' da descrição." />
+              tone={k.withCriteria < 60 ? 'warn' : undefined}
+              footnote={k.templateUnfilled ? `${k.templateUnfilled} com template não preenchido` : undefined} info="Histórias com critérios no campo próprio do Jira ou numa seção 'Critérios de aceite' da descrição." />
             <KpiCard index={3} icon={<Sparkles className="h-3.5 w-3.5" />} label="Qualidade média da spec" value={k.spec} format={(v) => `${fmtInt(v)}/100`}
               info="Heurística sem LLM: quantidade de critérios (35), critérios testáveis em Dado/Quando/Então ou 'deve' (20), descrição com contexto (20), story points (15) e épico vinculado (10)." />
             <KpiCard index={4} icon={<RotateCcw className="h-3.5 w-3.5" />} label="Histórias reabertas" value={k.reopened} format={fmtInt}
@@ -233,8 +236,8 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
               </ChartCard>
             </FadeIn>
             <FadeIn delay={0.2}>
-              <ChartCard title="Onde estão os critérios de aceite" description="Origem dos critérios em cada história" className="h-full">
-                <BucketChart data={criteriaSources.map((c, i) => ({ ...c, color: i === 2 ? 'var(--warn)' : 'var(--accent)' }))} unit="histórias" />
+              <ChartCard title="Onde estão os critérios de aceite" description="Origem: campo do Jira, descrição, template não preenchido ou nenhum" className="h-full">
+                <BucketChart data={criteriaSources.map((c, i) => ({ ...c, color: i >= 2 ? 'var(--warn)' : 'var(--accent)' }))} unit="histórias" />
               </ChartCard>
             </FadeIn>
           </div>
@@ -297,16 +300,18 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
                               {s.key} <ExternalLink className="h-3 w-3" />
                             </a>
                           </Td>
-                          <Td className="max-w-[320px] truncate text-text" title={s.title}>
+                          <Td className="max-w-[240px] truncate text-text" title={s.title}>
                             {s.title}
                             <div className="text-[11px] text-muted">{s.type}</div>
                           </Td>
-                          <Td className="text-xs text-muted">{s.assignee ?? '—'}</Td>
+                          <Td className="max-w-[150px] truncate text-xs text-muted" title={s.assignee ?? undefined}>{s.assignee ?? '—'}</Td>
                           <Td className="text-xs text-muted">{s.sprintName ?? '—'}</Td>
                           <Td className="num text-right">{s.points ?? '—'}</Td>
-                          <Td className={cn('num text-right', s.criteria.length === 0 && 'text-warn')}>{s.criteria.length}</Td>
+                          <Td className={cn('num text-right', s.criteria.length === 0 && 'text-warn')}>
+                            {s.criteriaTemplateUnfilled ? <Badge tone="warn">template vazio</Badge> : s.criteria.length}
+                          </Td>
                           <Td>
-                            <div className="flex w-28 items-center gap-2">
+                            <div className="flex w-20 items-center gap-2">
                               <Progress value={s.specQuality} color={specColor(s.specQuality)} />
                               <span className="num w-7 text-right text-xs">{s.specQuality}</span>
                             </div>
@@ -452,7 +457,9 @@ function StoryDialog({ story, onClose }: { story: JiraStory | null; onClose: () 
             </ul>
           ) : (
             <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-sm">
-              Esta história não tem critérios de aceite no Jira. Sem eles, não dá para auditar se o código entregue bate com o card.
+              {story.criteriaTemplateUnfilled
+                ? 'A descrição tem o template de critérios de aceite, mas ele não foi preenchido. Sem critérios, não dá para auditar se o código entregue bate com o card.'
+                : 'Esta história não tem critérios de aceite no Jira. Sem eles, não dá para auditar se o código entregue bate com o card.'}
             </div>
           )}
           <p className="mt-4 text-[11px] text-muted">
