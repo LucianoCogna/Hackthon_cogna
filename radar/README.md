@@ -15,14 +15,17 @@ Nenhuma chamada de rede além das fontes do Google. GitHub, Jira e Kiro/AWS são
 
 ## Abas
 
-| Rota | Aba | Persona |
+| Rota | Aba | Quem acessa |
 |---|---|---|
-| `/` | Visão Executiva | VP |
-| `/github` | GitHub por Dev | Dev / TL |
-| `/aderencia` | GitHub × Jira (auditoria da história) | TL |
-| `/ia` | Uso de IA (Kiro) | todos |
-| `/radar` | Radar de PRs (alertas) | TL |
-| `/guardrails` | Guardrails & Skills (downloads .md / .zip) | Dev |
+| `/` | Visão Executiva (o Dev vê só os próprios dados) | VP, Tech Lead, Dev |
+| `/github` | GitHub por Dev | VP, Tech Lead |
+| `/aderencia` | GitHub × Jira: Indicadores da sprint e Aderência PR × história | VP, Tech Lead |
+| `/ia` | Uso de IA (Kiro) (o Dev vê só o próprio uso) | VP, Tech Lead, Dev |
+| `/radar` | Radar de PRs (alertas) | VP, Tech Lead |
+| `/crew` | KiroCópter (kit de agentes Kiro) | VP, Tech Lead, Dev |
+| `/perfil` | Meu perfil (clique no seu usuário, no rodapé da sidebar), com a seção **Squads e integrações**: cadastro de squad com Jira, GitHub e Kiro | Todos; a seção de squads: VP (todos) e Tech Lead (o próprio) |
+
+O Tech Lead vê os dados do próprio squad; o VP, de todos. Squads cadastrados ficam salvos no navegador (protótipo) e entram no filtro de squads.
 
 ### Login de teste e perfis
 

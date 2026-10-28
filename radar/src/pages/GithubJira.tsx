@@ -118,7 +118,7 @@ export default function GithubJira() {
   ];
 
   const bySquad = squads
-    .filter((s) => scope.inSquad(s.id))
+    .filter((s) => scope.inSquad(s.id) && scope.prs.some((p) => p.squadId === s.id))
     .map((s) => ({
       name: s.name,
       v: Math.round(mean(scope.prs.filter((p) => p.squadId === s.id && p.jiraAdherence !== null).map((p) => p.jiraAdherence!))),

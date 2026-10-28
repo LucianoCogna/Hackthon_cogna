@@ -174,8 +174,10 @@ export function useScope(): Scope {
     const allStories = stories.filter((s) => inSquad(s.squadId));
     const allUsage = kiroUsage.filter((u) => inSquad(devSquad[u.devId]) && (!devId || u.devId === devId));
     const devCount = devId ? 1 : devs.filter((d) => inSquad(d.squadId)).length;
-    const squadCount = filters.squadId === 'all' ? squads.length : 1;
-    const scale = squadCount / squads.length;
+    // só squads com pessoas contam (um squad recém-cadastrado ainda não tem dados)
+    const withData = squads.filter((sq) => devs.some((d) => d.squadId === sq.id)).length;
+    const squadCount = filters.squadId === 'all' ? withData : 1;
+    const scale = squadCount / withData;
 
     const scopeLabel =
       filters.sprintId !== 'all'

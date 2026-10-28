@@ -24,7 +24,7 @@ import { PERIODS, PERSONAS, useApp, useScope, type Persona } from './store';
 import { Select } from '@/components/ui/misc';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/overlay';
-import { squads } from '@/mocks/squads';
+import { useSquads } from './squadRegistry';
 import { sprints } from '@/mocks/sprints';
 import { prRisk } from '@/lib/metrics';
 import { CognaLogo } from '@/components/CognaLogo';
@@ -135,9 +135,10 @@ function SidebarNav({ collapsed, onNavigate, criticalCount }: { collapsed: boole
   );
 }
 
-/** Usuário logado, no rodapé da sidebar (roxa). Recolhida, mostra só o avatar e o botão de sair. */
-function UserMenu({ collapsed }: { collapsed?: boolean }) {
+/** Usuário logado, no rodapé da sidebar: abre o Meu perfil. Recolhida, mostra só o avatar e o botão de sair. */
+function UserMenu({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const { session, logout } = useApp();
+  const squads = useSquads();
   const navigate = useNavigate();
   if (!session) return null;
   const squad = session.squadId && squads.find((s) => s.id === session.squadId)?.name;
@@ -156,22 +157,33 @@ function UserMenu({ collapsed }: { collapsed?: boolean }) {
   if (collapsed)
     return (
       <div className="mb-2 flex flex-col items-center gap-1">
-        <Tooltip side="right" content={<><b>{session.name}</b><br />{PERSONAS[session.persona].short}{squad && ` · ${squad}`}</>}>
-          <span><DevAvatar name={session.name} size={32} /></span>
+        <Tooltip side="right" content={<><b>{session.name}</b><br />{PERSONAS[session.persona].short}{squad && ` · ${squad}`}<br />Abrir meu perfil</>}>
+          <NavLink to="/perfil" onClick={onNavigate} aria-label="Meu perfil" className="cursor-pointer rounded-full">
+            <DevAvatar name={session.name} size={32} />
+          </NavLink>
         </Tooltip>
         {logoutBtn}
       </div>
     );
   return (
-    <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-side-border bg-side-surface p-2.5">
-      <DevAvatar name={session.name} size={32} />
-      <div className="min-w-0 flex-1 leading-tight">
-        <div className="truncate text-xs font-semibold text-side-text">{session.name}</div>
-        <div className="truncate text-[10px] text-side-muted">
-          {PERSONAS[session.persona].short}
-          {squad && <> · {squad}</>}
+    <div className="mb-3 flex items-center gap-1 rounded-lg border border-side-border bg-side-surface p-1.5">
+      <NavLink
+        to="/perfil"
+        onClick={onNavigate}
+        title="Abrir meu perfil"
+        className={({ isActive }) =>
+          cn('flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md p-1 hover:bg-side-hover', isActive && 'bg-side-active')
+        }
+      >
+        <DevAvatar name={session.name} size={32} />
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="truncate text-xs font-semibold text-side-text">{session.name}</div>
+          <div className="truncate text-[10px] text-side-muted">
+            {PERSONAS[session.persona].short}
+            {squad && <> · {squad}</>} · Meu perfil
+          </div>
         </div>
-      </div>
+      </NavLink>
       {logoutBtn}
     </div>
   );
@@ -179,6 +191,7 @@ function UserMenu({ collapsed }: { collapsed?: boolean }) {
 
 function FilterBar() {
   const { filters, setFilters, resetFilters, session } = useApp();
+  const squads = useSquads();
   const locked = session?.squadId;
   const dirty = filters.squadId !== (locked ?? 'all') || filters.sprintId !== 'all' || filters.period !== 4;
   return (
@@ -308,7 +321,7 @@ export function Layout() {
                 <SidebarNav collapsed={false} onNavigate={() => setMobileOpen(false)} criticalCount={criticalCount} />
               </div>
               <div className="border-t border-side-border p-3">
-                <UserMenu />
+                <UserMenu onNavigate={() => setMobileOpen(false)} />
               </div>
             </motion.aside>
           </>

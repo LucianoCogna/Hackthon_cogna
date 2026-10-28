@@ -1,4 +1,18 @@
-export type Squad = { id: string; name: string; techLead: string; color: string };
+export type Squad = {
+  id: string;
+  name: string;
+  techLead: string;
+  color: string;
+  /** integrações (tela Squads e integrações); nos squads do mock, derivadas dos dados simulados */
+  jiraProject?: string;
+  jiraBoardId?: number;
+  repos?: string[];
+  kiro?: boolean;
+  /** cadastrado pela tela (fica salvo no navegador) */
+  custom?: boolean;
+  /** última validação das integrações (simulada) */
+  checkedAt?: string;
+};
 
 export type Seniority = 'Jr' | 'Pl' | 'Sr' | 'Esp';
 

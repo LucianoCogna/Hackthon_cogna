@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import './index.css';
+import './app/squadRegistry';
 import { AppProvider, useApp } from './app/store';
 import { Layout } from './app/Layout';
 import { TooltipProvider } from './components/ui/overlay';
@@ -12,6 +13,7 @@ import GithubJira from './pages/GithubJira';
 import AiUsage from './pages/AiUsage';
 import PrRadar from './pages/PrRadar';
 import Crew from './pages/Crew';
+import Profile from './pages/Profile';
 
 const router = createBrowserRouter([
   {
@@ -24,6 +26,8 @@ const router = createBrowserRouter([
       { path: 'ia', element: <AiUsage /> },
       { path: 'radar', element: <PrRadar /> },
       { path: 'crew', element: <Crew /> },
+      { path: 'perfil', element: <Profile /> },
+      { path: 'squads', element: <Navigate to="/perfil" replace /> },
       { path: '*', element: <Overview /> },
     ],
   },
