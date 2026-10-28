@@ -35,7 +35,7 @@ seleciona os agentes no seletor do Kiro e usa.
 
 | Peça | Caminho | Papel |
 |---|---|---|
-| Agente `radar-orchestrator` | `.kiro/agents/radar-orchestrator.md` | Entrada do crew: roteia o pedido |
+| Agente `kirocopter` | `.kiro/agents/kirocopter.md` | Entrada do crew: roteia o pedido |
 | Agente `analise-starter` | `.kiro/agents/analise-starter.md` | Abre a análise de um card de Jira (qualquer prefixo) |
 | Agente `jira-adherence` | `.kiro/agents/jira-adherence.md` | Audita PR × critérios do card |
 | Agente `pr-auditor` | `.kiro/agents/pr-auditor.md` | Calcula o risk score do PR |

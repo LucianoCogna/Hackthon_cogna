@@ -15,9 +15,9 @@ Guia de bolso do esquadrão. Em dúvida de qual peça usar, consulte a tabela.
 | "Peguei o card X, quero começar" | `analise-starter` | cria pasta + README no padrão, puxa o card, sugere o modelo por tarefa |
 | "Esse PR bate com o card?" | `jira-adherence` | audita critério a critério, com evidência |
 | "Esse PR é arriscado?" | `pr-auditor` | calcula o risk score e, se crítico, escreve o pedido de re-review |
-| "Não sei por onde começar / quero que alguém roteie" | `radar-orchestrator` | recebe o pedido e aciona o especialista certo |
+| "Não sei por onde começar / quero que alguém roteie" | `kirocopter` | recebe o pedido e aciona o especialista certo |
 
-A regra simples: **na dúvida, fale com o `radar-orchestrator`** — ele direciona.
+A regra simples: **na dúvida, fale com o `kirocopter`** — ele direciona.
 
 ## O fluxo numa olhada
 

@@ -45,7 +45,7 @@ do repo. Instale e use.
 
 | Peça | Caminho | Categoria | O que faz |
 |---|---|---|---|
-| `radar-orchestrator` | `.kiro/agents/` | ORQUESTRA | Torre de controle: recebe o pedido e aciona o agente certo |
+| `kirocopter` | `.kiro/agents/` | ORQUESTRA | Torre de controle: recebe o pedido e aciona o agente certo |
 | `analise-starter` | `.kiro/agents/` | SPEC/BUILD | Abre a análise de um card do Jira (qualquer prefixo): cria pasta + README no padrão da squad, puxa o contexto do card e sugere o modelo antes de cada tarefa |
 | `jira-adherence` | `.kiro/agents/` | SPEC | Audita o diff do PR contra os critérios de aceite do card, critério a critério, com evidência |
 | `pr-auditor` | `.kiro/agents/` | RUN | Calcula o risk score do PR e, se crítico, redige o pedido de re-review |
