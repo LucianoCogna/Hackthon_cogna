@@ -13,14 +13,13 @@ function safeEqual(a: string, b: string) {
 
 /**
  * Lança 401 (code: 'auth') se o código não confere.
- * Sem RADAR_ACCESS_CODE configurado: libera só fora da Vercel (dev local); na Vercel, nega (falha fechada).
+ * Fora da Vercel (npm run dev na máquina de quem já tem o token do Jira) não pede código.
+ * Na Vercel, sem RADAR_ACCESS_CODE configurado, nega (falha fechada).
  */
 export function requireAccess(req: Req) {
+  if (!process.env.VERCEL) return;
   const expected = process.env.RADAR_ACCESS_CODE;
-  if (!expected) {
-    if (process.env.VERCEL) throw new JiraError('Acesso restrito: RADAR_ACCESS_CODE não configurado no servidor.', 401, 'auth');
-    return;
-  }
+  if (!expected) throw new JiraError('Acesso restrito: RADAR_ACCESS_CODE não configurado no servidor.', 401, 'auth');
   const sent = req.headers[ACCESS_HEADER];
   const value = Array.isArray(sent) ? sent[0] : sent;
   if (!value || !safeEqual(value.trim(), expected)) {

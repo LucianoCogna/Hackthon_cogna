@@ -1,20 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts';
 import { Award, Bot, CheckCheck, GraduationCap, Lightbulb, Medal, Sparkles, Trophy, Users, Workflow } from 'lucide-react';
-import { useScope } from '@/app/store';
+import { useApp, useScope } from '@/app/store';
 import { DevAvatar, EmptyState, FadeIn, KpiCard, Legend, PageHeader, SquadTag } from '@/components/shared';
 import { ChartCard, ChartTooltip, axisProps, gridProps } from '@/components/charts';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/misc';
-import { Sheet, SheetContent, Tooltip } from '@/components/ui/overlay';
+import { Sheet, SheetContent } from '@/components/ui/overlay';
 import { devs, devById } from '@/mocks/devs';
-import { squads } from '@/mocks/squads';
 import { MODELS, ROUTING, TASKS, RECOMMENDED } from '@/mocks/kiro';
-import { SPRINT_ORIGIN, addDays } from '@/mocks/sprints';
 import type { KiroModel, KiroUsage } from '@/mocks/types';
 import { groupBy, kiroStats, modelFits, sum, type KiroStats } from '@/lib/metrics';
-import { fmtBRL, fmtDate, fmtInt, fmtPct } from '@/lib/format';
+import { fmtBRL, fmtInt, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 export const MODEL_COLOR: Record<KiroModel, string> = {
@@ -25,11 +23,7 @@ export const MODEL_COLOR: Record<KiroModel, string> = {
 };
 export const shortModel = (m: KiroModel) => m.replace('Claude ', '');
 
-const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const effColor = (v: number) => (v >= 70 ? 'var(--ok)' : v >= 50 ? 'var(--warn)' : 'var(--risk)');
-
-const weekOf = (iso: string) =>
-  Math.floor((new Date(iso + 'T12:00:00Z').getTime() - new Date(SPRINT_ORIGIN + 'T12:00:00Z').getTime()) / (7 * 86_400_000));
 
 function practices(s: KiroStats, us: KiroUsage[]) {
   const out: string[] = [];
@@ -62,6 +56,9 @@ export function suggestions(s: KiroStats, us: KiroUsage[]) {
 export default function AiUsage() {
   const scope = useScope();
   const [selected, setSelected] = useState<string | null>(null);
+  // Dev: só o próprio uso (o escopo já vem filtrado), sem rankings do time
+  const { session } = useApp();
+  const individual = session?.persona === 'dev';
 
   const scopeDevs = devs.filter((d) => scope.inSquad(d.squadId));
   const byDev = useMemo(() => groupBy(scope.usage, (u) => u.devId), [scope.usage]);
@@ -85,32 +82,6 @@ export default function AiUsage() {
     .map(([k, v]) => ({ k, n: sum(v.map((u) => u.calls)) }))
     .sort((a, b) => b.n - a.n);
 
-  // Heatmap squad × semana
-  const heat = useMemo(() => {
-    const start = scope.scopeSprints[0].start;
-    const end = scope.scopeSprints[scope.scopeSprints.length - 1].end;
-    let w0 = weekOf(start);
-    const w1 = weekOf(end);
-    if (w1 - w0 < 11) w0 = Math.max(0, w1 - 11);
-    if (w1 - w0 > 15) w0 = w1 - 15;
-    const weeks = Array.from({ length: w1 - w0 + 1 }, (_, i) => w0 + i);
-    const byWeek = groupBy(scope.allUsage.filter((u) => weekOf(u.date) >= w0 && weekOf(u.date) <= w1), (u) => String(weekOf(u.date)));
-    const rows = squads
-      .filter((s) => scope.inSquad(s.id))
-      .map((s) => {
-        const sd = devs.filter((d) => d.squadId === s.id);
-        return {
-          squad: s,
-          cells: weeks.map((w) => {
-            const us = (byWeek[String(w)] ?? []).filter((u) => sd.some((d) => d.id === u.devId));
-            // dias-dev ativos ÷ (devs × 5 dias úteis)
-            return Math.min(100, Math.round((100 * new Set(us.map((u) => u.devId + u.date)).size) / (sd.length * 5)));
-          }),
-        };
-      });
-    return { weeks, rows };
-  }, [scope]);
-
   // Tarefa × modelo
   const taskModel = TASKS.map((t) => {
     const us = scope.usage.filter((u) => u.taskType === t);
@@ -129,9 +100,10 @@ export default function AiUsage() {
     <div>
       <PageHeader
         eyebrow="Uso de IA · Kiro / AWS"
-        title="Como o time está usando o Kiro"
+        title={individual ? 'Como você está usando o Kiro' : 'Como o time está usando o Kiro'}
         subtitle={
           <>
+            {individual && <>Só você vê estes números. </>}
             Adoção, aceitação, uso spec-driven e escolha de modelo. Fonte futura: métricas de uso do Kiro na AWS{' '}
             <Badge tone="warn">a validar quais campos a AWS expõe</Badge>. Neste protótipo, todos os dados são simulados.
           </>
@@ -139,8 +111,13 @@ export default function AiUsage() {
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <KpiCard index={0} icon={<Users className="h-3.5 w-3.5" />} label="Devs ativos no Kiro" value={(100 * active) / Math.max(1, scopeDevs.length)} format={(v) => fmtPct(v)}
-          footnote={`${active} de ${scopeDevs.length}`} delta={delta(active, prevActive)} info="Devs com pelo menos uma interação com o Kiro no período." />
+        {individual ? (
+          <KpiCard index={0} icon={<Bot className="h-3.5 w-3.5" />} label="Chamadas ao Kiro" value={all.calls} format={fmtInt}
+            delta={delta(all.calls, prevAll.calls)} info="Total de chamadas que você fez ao Kiro no período." />
+        ) : (
+          <KpiCard index={0} icon={<Users className="h-3.5 w-3.5" />} label="Devs ativos no Kiro" value={(100 * active) / Math.max(1, scopeDevs.length)} format={(v) => fmtPct(v)}
+            footnote={`${active} de ${scopeDevs.length}`} delta={delta(active, prevActive)} info="Devs com pelo menos uma interação com o Kiro no período." />
+        )}
         <KpiCard index={1} icon={<CheckCheck className="h-3.5 w-3.5" />} label="Taxa de aceitação" value={all.acceptanceRate * 100} format={(v) => fmtPct(v)}
           delta={delta(all.acceptanceRate, prevAll.acceptanceRate)} info="% das sugestões aceitas e mantidas no código (ponderado por chamadas)." />
         <KpiCard index={2} icon={<Workflow className="h-3.5 w-3.5" />} label="Uso spec-driven" value={all.specDrivenRate * 100} format={(v) => fmtPct(v)}
@@ -163,7 +140,7 @@ export default function AiUsage() {
       </div>
 
       {/* Champions */}
-      {champions.length > 0 && (
+      {!individual && champions.length > 0 && (
         <FadeIn delay={0.1} className="mt-4">
           <Card className="relative overflow-hidden border-ai/30 p-5">
             <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-ai/15 blur-3xl" />
@@ -201,6 +178,13 @@ export default function AiUsage() {
         </FadeIn>
       )}
 
+      {individual ? (
+        <FadeIn delay={0.1} className="mt-4">
+          <ChartCard title="Seu perfil de uso" description={`Modelos, tarefas, skills e sugestões · ${scope.scopeLabel}`}>
+            <UsageProfile us={scope.usage} />
+          </ChartCard>
+        </FadeIn>
+      ) : (
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <FadeIn delay={0.15}>
           <ChartCard title="Destaques" description="Top 10 em eficiência de uso do Kiro" info="Clique em um dev para ver o perfil de uso e sugestões." className="h-full">
@@ -209,7 +193,7 @@ export default function AiUsage() {
         </FadeIn>
         <FadeIn delay={0.2}>
           <ChartCard
-            title={<span className="flex items-center gap-1.5"><GraduationCap className="h-4 w-4 text-accent" /> Oportunidades de mentoria</span>}
+            title={<span className="flex items-center gap-1.5"><GraduationCap className="h-4 w-4 text-accent" /> Oportunidades de melhoria</span>}
             description="Quem pode ganhar mais com pareamento e guardrails. Não é ranking de desempenho."
             className="h-full"
           >
@@ -217,50 +201,10 @@ export default function AiUsage() {
           </ChartCard>
         </FadeIn>
       </div>
+      )}
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+      <div className="mt-4">
         <FadeIn delay={0.25}>
-          <ChartCard title="Adoção por squad × semana" description="% dos dias úteis em que os devs do squad usaram o Kiro" className="h-full">
-            {heat.rows.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full border-separate" style={{ borderSpacing: 3 }}>
-                  <thead>
-                    <tr>
-                      <th />
-                      {heat.weeks.map((w) => (
-                        <th key={w} className="num px-0.5 text-[10px] font-normal text-muted">{ddmm(addDays(SPRINT_ORIGIN, w * 7))}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {heat.rows.map((r) => (
-                      <tr key={r.squad.id}>
-                        <td className="whitespace-nowrap pr-2 text-xs text-muted">{r.squad.name}</td>
-                        {r.cells.map((v, i) => (
-                          <Tooltip key={i} content={<span className="num">{r.squad.name} · semana de {fmtDate(addDays(SPRINT_ORIGIN, heat.weeks[i] * 7))}: <b>{v}%</b> dos dias úteis com uso</span>}>
-                            <td className="h-7 min-w-6 rounded-[4px] text-center text-[10px] font-medium"
-                              style={{
-                                background: `color-mix(in srgb, var(--accent) ${Math.round(8 + v * 0.85)}%, var(--surface-2))`,
-                                color: v > 55 ? 'var(--on-accent)' : 'var(--text)',
-                              }}>
-                              <span className="num">{v}</span>
-                            </td>
-                          </Tooltip>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="mt-3 flex items-center gap-2 text-[10px] text-muted">
-                  0%
-                  <div className="h-2 w-32 rounded-full" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, var(--surface-2)), var(--accent))' }} />
-                  100%
-                </div>
-              </div>
-            ) : <EmptyState />}
-          </ChartCard>
-        </FadeIn>
-        <FadeIn delay={0.3}>
           <ChartCard
             title="Tipo de tarefa × modelo usado"
             description="Chamadas por tarefa, empilhadas por modelo. À direita, o % de chamadas com modelo inadequado."
@@ -329,11 +273,6 @@ function UsageSheet({ devId, onClose }: { devId: string | null; onClose: () => v
   const scope = useScope();
   const dev = devId ? devById[devId] : null;
   const us = useMemo(() => (dev ? scope.usage.filter((u) => u.devId === dev.id) : []), [dev, scope.usage]);
-  const s = kiroStats(us);
-  const models = MODELS.map((m) => ({ m: shortModel(m), n: sum(us.filter((u) => u.model === m).map((u) => u.calls)), color: MODEL_COLOR[m] }));
-  const tasks = TASKS.map((t) => ({ t, n: sum(us.filter((u) => u.taskType === t).map((u) => u.calls)) })).sort((a, b) => b.n - a.n);
-  const skills = Object.entries(groupBy(us.filter((u) => u.usedSkill), (u) => u.usedSkill as string)).sort((a, b) => b[1].length - a[1].length);
-  const maxTask = Math.max(1, ...tasks.map((t) => t.n));
   return (
     <Sheet open={!!dev} onOpenChange={(o) => !o && onClose()}>
       {dev && (
@@ -341,64 +280,75 @@ function UsageSheet({ devId, onClose }: { devId: string | null; onClose: () => v
           title={<div className="flex items-center gap-3"><DevAvatar name={dev.name} size={40} /><div>{dev.name}<div className="mt-0.5 text-xs font-normal text-muted"><SquadTag id={dev.squadId} /></div></div></div>}
           description={`Perfil de uso do Kiro · ${scope.scopeLabel}`}
         >
-          {us.length === 0 ? <EmptyState description="Sem uso do Kiro no período." /> : (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {[
-                  ['Eficiência', `${fmtInt(s.efficiency)}`],
-                  ['Aceitação', fmtPct(s.acceptanceRate * 100)],
-                  ['Modelo adequado', fmtPct(s.modelFitRate * 100)],
-                  ['Spec-driven', fmtPct(s.specDrivenRate * 100)],
-                ].map(([l, v]) => (
-                  <div key={l} className="rounded-lg bg-surface-2/70 p-3">
-                    <div className="text-[11px] text-muted">{l}</div>
-                    <div className="num mt-1 text-lg font-semibold">{v}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-                <span className="text-muted">Custo no período</span>
-                <span className="num font-semibold">{fmtBRL(s.cost)} <span className="text-xs font-normal text-risk">({fmtBRL(s.wasted)} desperdiçados)</span></span>
-              </div>
-              <section>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Modelos usados</h4>
-                <div className="flex h-3 overflow-hidden rounded-full">
-                  {models.filter((m) => m.n).map((m) => (
-                    <div key={m.m} style={{ width: `${(100 * m.n) / s.calls}%`, background: m.color }} className="border-r-2 border-surface last:border-0" />
-                  ))}
-                </div>
-                <div className="mt-2"><Legend items={models.map((m) => ({ label: `${m.m} ${fmtPct((100 * m.n) / Math.max(1, s.calls))}`, color: m.color }))} /></div>
-              </section>
-              <section>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Tarefas</h4>
-                <div className="space-y-1.5">
-                  {tasks.map((t) => (
-                    <div key={t.t} className="flex items-center gap-2 text-xs">
-                      <span className="w-28 text-muted">{t.t}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-ai" style={{ width: `${(100 * t.n) / maxTask}%` }} /></div>
-                      <span className="num w-10 text-right">{t.n}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              <section>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Skills e steering</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {skills.length ? skills.map(([k, v]) => <Badge key={k} tone="ai"><span className="num">{k}</span> · {v.length}</Badge>) : <span className="text-xs text-muted">Nenhuma skill usada</span>}
-                </div>
-              </section>
-              <section>
-                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted"><Bot className="h-3.5 w-3.5" /> Sugestões personalizadas</h4>
-                <ul className="space-y-2">
-                  {suggestions(s, us).map((x) => (
-                    <li key={x} className="flex gap-2 rounded-lg border border-accent/25 bg-accent-soft p-3 text-sm"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{x}</li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-          )}
+          <UsageProfile us={us} />
         </SheetContent>
       )}
     </Sheet>
   );
 }
+
+function UsageProfile({ us }: { us: KiroUsage[] }) {
+  const s = kiroStats(us);
+  const models = MODELS.map((m) => ({ m: shortModel(m), n: sum(us.filter((u) => u.model === m).map((u) => u.calls)), color: MODEL_COLOR[m] }));
+  const tasks = TASKS.map((t) => ({ t, n: sum(us.filter((u) => u.taskType === t).map((u) => u.calls)) })).sort((a, b) => b.n - a.n);
+  const skills = Object.entries(groupBy(us.filter((u) => u.usedSkill), (u) => u.usedSkill as string)).sort((a, b) => b[1].length - a[1].length);
+  const maxTask = Math.max(1, ...tasks.map((t) => t.n));
+  if (us.length === 0) return <EmptyState description="Sem uso do Kiro no período." />;
+  return (
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ['Eficiência', `${fmtInt(s.efficiency)}`],
+            ['Aceitação', fmtPct(s.acceptanceRate * 100)],
+            ['Modelo adequado', fmtPct(s.modelFitRate * 100)],
+            ['Spec-driven', fmtPct(s.specDrivenRate * 100)],
+          ].map(([l, v]) => (
+            <div key={l} className="rounded-lg bg-surface-2/70 p-3">
+              <div className="text-[11px] text-muted">{l}</div>
+              <div className="num mt-1 text-lg font-semibold">{v}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+          <span className="text-muted">Custo no período</span>
+          <span className="num font-semibold">{fmtBRL(s.cost)} <span className="text-xs font-normal text-risk">({fmtBRL(s.wasted)} desperdiçados)</span></span>
+        </div>
+        <section>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Modelos usados</h4>
+          <div className="flex h-3 overflow-hidden rounded-full">
+            {models.filter((m) => m.n).map((m) => (
+              <div key={m.m} style={{ width: `${(100 * m.n) / s.calls}%`, background: m.color }} className="border-r-2 border-surface last:border-0" />
+            ))}
+          </div>
+          <div className="mt-2"><Legend items={models.map((m) => ({ label: `${m.m} ${fmtPct((100 * m.n) / Math.max(1, s.calls))}`, color: m.color }))} /></div>
+        </section>
+        <section>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Tarefas</h4>
+          <div className="space-y-1.5">
+            {tasks.map((t) => (
+              <div key={t.t} className="flex items-center gap-2 text-xs">
+                <span className="w-28 text-muted">{t.t}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-ai" style={{ width: `${(100 * t.n) / maxTask}%` }} /></div>
+                <span className="num w-10 text-right">{t.n}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Skills e steering</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {skills.length ? skills.map(([k, v]) => <Badge key={k} tone="ai"><span className="num">{k}</span> · {v.length}</Badge>) : <span className="text-xs text-muted">Nenhuma skill usada</span>}
+          </div>
+        </section>
+        <section>
+          <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted"><Bot className="h-3.5 w-3.5" /> Sugestões personalizadas</h4>
+          <ul className="space-y-2">
+            {suggestions(s, us).map((x) => (
+              <li key={x} className="flex gap-2 rounded-lg border border-accent/25 bg-accent-soft p-3 text-sm"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{x}</li>
+            ))}
+          </ul>
+        </section>
+      </div>
+  );
+}
+

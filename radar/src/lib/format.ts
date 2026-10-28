@@ -38,3 +38,6 @@ export const fmtMonth = (iso: string) => dfMonth.format(new Date(iso + 'T12:00:0
 
 export const fmtSigned = (n: number, digits = 0, suffix = '%') =>
   `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtNum(Math.abs(n), digits)}${suffix}`;
+
+/** "[CRPR] SP 26.1.10" → "26.1.10" */
+export const shortSprint = (name: string) => name.match(/\d+(?:\.\d+)+/)?.[0] ?? name.replace(/^.*?(\d+)\s*$/, 'S$1');

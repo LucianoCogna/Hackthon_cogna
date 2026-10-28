@@ -7,6 +7,7 @@ export type {
   GithubPrsResponse,
   JiraBoardResponse,
   JiraSprint,
+  JiraSprintItem,
   JiraStory,
 } from '../../api/_lib/types';
 

@@ -12,6 +12,21 @@ export type JiraSprint = {
   stories: number;
   pointsCommitted: number;
   pointsDone: number;
+  /** itens que estiveram na sprint (inclusive os que transbordaram para a seguinte) */
+  items: JiraSprintItem[];
+};
+
+export type JiraSprintItem = {
+  key: string;
+  type: string;
+  points: number;
+  team: string | null;
+  assignee: string | null;
+  /** subtarefa: entra nos indicadores por tipo, mas não soma nos pontos da sprint (evita contar duas vezes) */
+  subtask: boolean;
+  /** data em que foi concluído dentro da sprint; null = não entregue nela */
+  doneAt: string | null;
+  cancelled: boolean;
 };
 
 export type JiraStory = {
@@ -26,6 +41,9 @@ export type JiraStory = {
   epicKey: string | null;
   epicName: string | null;
   assignee: string | null;
+  labels: string[];
+  /** frente do squad, pela label (ex.: Dev, Dados, DS no Pricing) */
+  team: string | null;
   criteria: string[];
   /** de onde vieram os critérios: campo próprio do Jira, seção da descrição, ou não encontrados */
   criteriaSource: 'campo' | 'descrição' | null;
@@ -47,6 +65,8 @@ export type JiraBoardResponse = {
   boardId: number;
   boardName: string;
   criteriaField: { id: string; name: string } | null;
+  /** frentes do squad, na ordem de exibição */
+  teams: string[];
   sprints: JiraSprint[];
   stories: JiraStory[];
   generatedAt: string;

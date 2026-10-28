@@ -4,6 +4,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
@@ -14,7 +15,7 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts';
-import { HeartHandshake, Search, UserRound } from 'lucide-react';
+import { GitPullRequest, HeartHandshake, Rocket, Search, ShieldAlert, Timer, UserRound } from 'lucide-react';
 import { useApp, useScope } from '@/app/store';
 import { AiPctBar, DevAvatar, EmptyState, FadeIn, KpiCard, Legend, PageHeader, RiskBadge, SquadTag } from '@/components/shared';
 import { ChartCard, ChartTooltip, TrendChart, axisProps, gridProps } from '@/components/charts';
@@ -23,17 +24,21 @@ import { Badge } from '@/components/ui/badge';
 import { Input, Select, Table, Td, Th } from '@/components/ui/misc';
 import { Sheet, SheetContent } from '@/components/ui/overlay';
 import { devs, devById, ME_ID } from '@/mocks/devs';
-import { squadById, squads } from '@/mocks/squads';
+import { squadById } from '@/mocks/squads';
+import { devPoints } from '@/mocks/devPoints';
 import { sprints, sprintById } from '@/mocks/sprints';
 import type { Dev, PullRequest } from '@/mocks/types';
 import { expectedReviewMin, groupBy, mean, prRisk, prSize, reviewRatio, sum } from '@/lib/metrics';
 import { fmtDate, fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { useSourceSwitch } from '@/components/SourceSwitch';
-import GithubDevsLive from './GithubDevsLive';
 
 type Row = {
   dev: Dev;
+  committed: number;
+  done: number;
+  stories: number;
+  /** PRs ÷ pontos comprometidos */
+  perPoint: number | null;
   prs: number;
   approval: number;
   linesPerPr: number;
@@ -45,12 +50,18 @@ type Row = {
   risk: number;
   perSprint: number[];
 };
-type SortKey = 'name' | 'prs' | 'approval' | 'linesPerPr' | 'added' | 'ai' | 'comments' | 'tests' | 'risk';
+type SortKey = 'name' | 'points' | 'perPoint' | 'prs' | 'approval' | 'linesPerPr' | 'added' | 'ai' | 'comments' | 'tests' | 'risk';
 
-function buildRow(dev: Dev, prs: PullRequest[], all: PullRequest[]): Row {
+function buildRow(dev: Dev, prs: PullRequest[], all: PullRequest[], sprintIds: string[]): Row {
   const allBy = groupBy(all, (p) => p.sprintId);
+  const pts = sprintIds.map((id) => devPoints[dev.id]?.[id] ?? { committed: 0, done: 0, stories: 0 });
+  const committed = sum(pts.map((p) => p.committed));
   return {
     dev,
+    committed,
+    done: sum(pts.map((p) => p.done)),
+    stories: sum(pts.map((p) => p.stories)),
+    perPoint: committed ? prs.length / committed : null,
     prs: prs.length,
     approval: mean(prs.map((p) => p.reviewTimeMin)),
     linesPerPr: mean(prs.map(prSize)),
@@ -87,7 +98,9 @@ const aiColor = (pct: number) => {
   return `color-mix(in srgb, var(--ai) ${Math.round(t * 100)}%, var(--human))`;
 };
 
-function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
+const firstName = (n: string) => n.split(' ')[0];
+
+export default function GithubDevs() {
   const scope = useScope();
   const { persona } = useApp();
   const [seniority, setSeniority] = useState('all');
@@ -98,17 +111,20 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
   const rows = useMemo(() => {
     const by = groupBy(scope.prs, (p) => p.authorId);
     const allBy = groupBy(scope.allPrs, (p) => p.authorId);
+    const sprintIds = scope.scopeSprints.map((s) => s.id);
     return devs
       .filter((d) => scope.inSquad(d.squadId))
       .filter((d) => seniority === 'all' || d.seniority === seniority)
       .filter((d) => !q || d.name.toLowerCase().includes(q.toLowerCase()))
-      .map((d) => buildRow(d, by[d.id] ?? [], allBy[d.id] ?? []));
+      .map((d) => buildRow(d, by[d.id] ?? [], allBy[d.id] ?? [], sprintIds));
   }, [scope, seniority, q]);
 
   const sorted = useMemo(() => {
     const dir = sort.dir === 'asc' ? 1 : -1;
     return [...rows].sort((a, b) => {
       if (sort.key === 'name') return a.dev.name.localeCompare(b.dev.name) * dir;
+      if (sort.key === 'points') return (a.committed - b.committed) * dir || b.prs - a.prs;
+      if (sort.key === 'perPoint') return ((a.perPoint ?? -1) - (b.perPoint ?? -1)) * dir;
       return ((a[sort.key] as number) - (b[sort.key] as number)) * dir;
     });
   }, [rows, sort]);
@@ -129,13 +145,14 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
   const suspicious = scatter.filter((s) => s.suspicious);
   const normal = scatter.filter((s) => !s.suspicious);
 
-  const bySquad = useMemo(
-    () =>
-      squads
-        .filter((s) => scope.inSquad(s.id))
-        .map((s) => ({ name: s.name, prs: scope.prs.filter((p) => p.squadId === s.id).length / scope.scopeSprints.length })),
-    [scope],
-  );
+  const pointsVsPrs = rows
+    .filter((r) => r.committed > 0 || r.prs > 0)
+    .map((r) => ({ x: r.committed, y: r.prs, name: firstName(r.dev.name), full: r.dev.name, id: r.dev.id, color: squadById[r.dev.squadId]?.color }));
+  const k = {
+    committed: sum(rows.map((r) => r.committed)),
+    done: sum(rows.map((r) => r.done)),
+    critical: scope.prs.filter((p) => prRisk(p) >= 70).length,
+  };
 
   const me = persona === 'dev' ? rows.find((r) => r.dev.id === ME_ID) : undefined;
   const meSquadRows = me ? rows.filter((r) => r.dev.squadId === me.dev.squadId && r.prs > 0) : [];
@@ -153,8 +170,7 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
       <PageHeader
         eyebrow="GitHub por Dev"
         title="Quem está entregando, e como"
-        subtitle={<>PRs, tamanho, tempo de aprovação e uso de IA por pessoa. Período: <span className="num text-text">{scope.scopeLabel}</span>.</>}
-        actions={switcher}
+        subtitle={<>Pontos de história ao lado dos PRs, tamanho, tempo de aprovação e uso de IA por pessoa. Período: <span className="num text-text">{scope.scopeLabel}</span>. Dados simulados.</>}
       />
 
       {me && (
@@ -186,18 +202,66 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
         </FadeIn>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard index={0} label="PRs no período" value={scope.prs.length} format={fmtInt} />
-        <KpiCard index={1} label="Linhas por PR (média)" value={mean(scope.prs.map(prSize))} format={fmtInt} tone="warn"
-          info="Linhas adicionadas + removidas por PR." />
-        <KpiCard index={2} label="Tempo médio de aprovação" value={mean(scope.prs.map((p) => p.reviewTimeMin))} format={fmtDuration}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <KpiCard index={0} icon={<GitPullRequest className="h-3.5 w-3.5" />} label="PRs no período" value={scope.prs.length} format={fmtInt} />
+        <KpiCard index={1} icon={<Rocket className="h-3.5 w-3.5" />} label="Pontos entregues" value={k.done} format={(v) => `${fmtInt(v)} pts`}
+          footnote={`${fmtInt(k.committed)} comprometidos`} info="Story points das histórias de cada pessoa nas sprints do período." />
+        <KpiCard index={2} label="PRs por ponto" value={k.committed ? scope.prs.length / k.committed : 0} format={(v) => fmtNum(v, 1)}
+          info="PRs abertos ÷ pontos comprometidos. Ajuda a ver quem quebra o trabalho em PRs pequenos. Não é medida de produtividade." />
+        <KpiCard index={3} icon={<Timer className="h-3.5 w-3.5" />} label="Tempo médio de aprovação" value={mean(scope.prs.map((p) => p.reviewTimeMin))} format={fmtDuration}
           footnote={`esperado ~${fmtDuration(mean(scope.prs.map(expectedReviewMin)))}`} info="Abertura → aprovação. Esperado: 30 min por 1.000 linhas, mínimo 10 min." />
-        <KpiCard index={3} label="PRs > 1.000 linhas e revisão < 20% do esperado" value={suspicious.length} format={fmtInt} tone="risk"
-          footnote={scope.prs.length ? `${fmtPct((100 * suspicious.length) / scope.prs.length, 1)} dos PRs` : undefined} />
+        <KpiCard index={4} label="Linhas por PR" value={mean(scope.prs.map(prSize))} format={fmtInt} info="Linhas adicionadas + removidas por PR." />
+        <KpiCard index={5} icon={<ShieldAlert className="h-3.5 w-3.5" />} label="PRs críticos" value={k.critical} format={fmtInt} tone={k.critical ? 'risk' : undefined}
+          footnote="risk score ≥ 70" />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <FadeIn delay={0.1} className="xl:col-span-2">
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <FadeIn delay={0.1}>
+          <ChartCard
+            title="Pontos × PRs por pessoa"
+            description="Cada ponto é uma pessoa, na cor do squad. Quem fica acima da tendência abre mais PRs por ponto de história."
+            className="h-full"
+          >
+            {pointsVsPrs.length ? (
+              <div className="h-[340px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 16, right: 24, bottom: 18, left: -8 }}>
+                    <CartesianGrid {...gridProps} vertical />
+                    <XAxis type="number" dataKey="x" name="Pontos" {...axisProps} allowDecimals={false}
+                      label={{ value: 'Pontos comprometidos', position: 'insideBottom', offset: -10, fill: 'var(--muted)', fontSize: 11 }} />
+                    <YAxis type="number" dataKey="y" name="PRs" {...axisProps} allowDecimals={false} />
+                    <ZAxis range={[80, 80]} />
+                    <RTooltip
+                      cursor={{ strokeDasharray: '3 3', stroke: 'var(--muted)' }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as (typeof pointsVsPrs)[number];
+                        return (
+                          <div className="rounded-lg border border-border bg-surface-2/95 px-3 py-2 text-xs shadow-xl">
+                            <div className="font-semibold">{d.full}</div>
+                            <div className="num text-muted">
+                              {d.x} pts · {d.y} PRs{d.x ? ` · ${fmtNum(d.y / d.x, 1)} PR/pt` : ''}
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Scatter data={pointsVsPrs} isAnimationActive={false} onClick={(d: { id?: string }) => d?.id && setSelected(d.id)} className="cursor-pointer">
+                      {pointsVsPrs.map((d) => (
+                        <Cell key={d.id} fill={d.color ?? 'var(--accent)'} fillOpacity={0.85} />
+                      ))}
+                      {/* nomes só quando cabem (um squad filtrado) */}
+                      {pointsVsPrs.length <= 16 && <LabelList dataKey="name" position="top" offset={8} style={{ fill: 'var(--text)', fontSize: 11 }} />}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <EmptyState description="Ninguém com pontos ou PRs nesse período." />
+            )}
+          </ChartCard>
+        </FadeIn>
+        <FadeIn delay={0.15}>
           <ChartCard
             title="O paradoxo: tamanho do PR × tempo de revisão"
             description="Cada ponto é um PR (escala logarítmica). Cor = % gerado por IA. Em vermelho: PRs com mais de 1.000 linhas revisados em menos de 20% do tempo esperado."
@@ -260,26 +324,6 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
             )}
           </ChartCard>
         </FadeIn>
-        <FadeIn delay={0.15}>
-          <ChartCard title="PRs por squad" description="Média de PRs por sprint no período" className="h-full">
-            {bySquad.length ? (
-              <div style={{ height: Math.max(120, bySquad.length * 38) }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bySquad} layout="vertical" margin={{ top: 0, right: 30, left: 8, bottom: 0 }} barCategoryGap={8}>
-                    <CartesianGrid {...gridProps} horizontal={false} vertical />
-                    <XAxis type="number" {...axisProps} />
-                    <YAxis type="category" dataKey="name" {...axisProps} width={96} />
-                    <RTooltip content={<ChartTooltip format={(v) => `${fmtNum(v, 1)} PRs/sprint`} />} cursor={{ fill: 'var(--accent-soft)' }} />
-                    <Bar isAnimationActive={false} dataKey="prs" name="PRs/sprint" fill="var(--accent)" radius={[0, 4, 4, 0]} barSize={16}
-                      label={{ position: 'right', fill: 'var(--muted)', fontSize: 11, formatter: (v: number) => fmtNum(v, 1) }} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <EmptyState />
-            )}
-          </ChartCard>
-        </FadeIn>
       </div>
 
       {/* Tabela */}
@@ -319,7 +363,9 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
                   <tr>
                     {th('name', 'Dev')}
                     <Th>Squad</Th>
+                    {th('points', 'Pontos', 'text-right')}
                     {th('prs', 'PRs', 'text-right')}
+                    {th('perPoint', 'PR/pt', 'text-right')}
                     <Th>PRs/sprint</Th>
                     {th('approval', 'Aprovação', 'text-right')}
                     {th('linesPerPr', 'Linhas/PR', 'text-right')}
@@ -350,7 +396,12 @@ function GithubDevsMock({ switcher }: { switcher: React.ReactNode }) {
                         </div>
                       </Td>
                       <Td><SquadTag id={r.dev.squadId} /></Td>
+                      <Td className="num text-right">
+                        <span className="font-semibold">{r.committed}</span>
+                        {r.committed !== r.done && <span className="text-xs text-muted"> ({r.done} entregues)</span>}
+                      </Td>
                       <Td className="num text-right font-semibold">{r.prs}</Td>
+                      <Td className="num text-right text-muted">{r.perPoint === null ? '—' : fmtNum(r.perPoint, 1)}</Td>
                       <Td><MiniBars values={r.perSprint} /></Td>
                       <Td className={cn('num text-right', r.approval > 0 && r.approval < 5 && 'text-risk')}>{r.prs ? fmtDuration(r.approval) : '—'}</Td>
                       <Td className="num text-right">{r.prs ? fmtInt(r.linesPerPr) : '—'}</Td>
@@ -509,12 +560,4 @@ function DevSheet({ devId, onClose }: { devId: string | null; onClose: () => voi
       )}
     </Sheet>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Fonte de dados: simulado (protótipo) ou Pricing (pontos reais do Jira + PRs simulados a partir dele)
-// ---------------------------------------------------------------------------
-export default function GithubDevs() {
-  const [source, switcher] = useSourceSwitch('radar.github.source', 'Pricing · Jira');
-  return source === 'live' ? <GithubDevsLive switcher={switcher} /> : <GithubDevsMock switcher={switcher} />;
 }

@@ -353,7 +353,7 @@ ${routingTable}
 - Nunca usar Opus ou Fable para commit, formatação ou pergunta simples.
 - Fable só para arquitetura ou spec complexa.
 - Commit, lint e formatação podem ser hook determinístico: custo R$ 0.
-- Custo desperdiçado = custo real − custo com o modelo sugerido (número da aba Custo & Governança).
+- Custo desperdiçado = custo real − custo com o modelo sugerido.
 `,
   "skills/kirocop-spec-ears/SKILL.md": `---
 name: kirocop-spec-ears

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Bot, Bug, Check, Clock, Copy, FileText, Gauge, Rocket, Sparkles, Timer, Wallet } from 'lucide-react';
+import { Bot, Bug, Check, Clock, Copy, FileText, Gauge, GitPullRequest, Rocket, Sparkles, Timer, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { useScope } from '@/app/store';
+import { useApp, useScope } from '@/app/store';
 import { KpiCard, PageHeader, FadeIn, Legend, AiSeal } from '@/components/shared';
 import { ChartCard, TrendChart } from '@/components/charts';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,8 @@ const AIDLC_IDX = 8;
 
 export default function Overview() {
   const scope = useScope();
+  // Dev: visão limitada aos próprios PRs e ao próprio uso de IA (sem squad, custo do time nem demanda)
+  const individual = useApp().persona === 'dev';
   const [open, setOpen] = useState(false);
   const hasPrev = scope.prevSprints.length > 0;
   const n = scope.scopeSprints.length;
@@ -72,7 +74,7 @@ export default function Overview() {
       const cost = sum(pts.map((p) => p.aiCost)) + pts.length * scope.devCount * DEV_COST_PER_SPRINT;
       return cost / Math.max(1, sum(pts.map((p) => p.throughput)));
     };
-    return [
+    const rows = [
       { label: 'Throughput (pontos/sprint)', b: throughputPerSprint(bs, nb), a: throughputPerSprint(as, na), up: true, f: fmtInt },
       { label: 'PRs por sprint', b: before.length / nb, a: after.length / na, up: true, f: fmtInt },
       { label: 'Lead time (abertura → merge)', b: avgLeadTime(before), a: avgLeadTime(after), up: false, f: fmtHours },
@@ -83,7 +85,8 @@ export default function Overview() {
       { label: 'Aderência PR × história', b: avgAdherence(before), a: avgAdherence(after), up: true, f: (v: number) => fmtPct(v) },
       { label: 'Custo por ponto entregue', b: cpp(0, nb), a: cpp(AIDLC_IDX + 1, 14), up: false, f: fmtBRL },
     ];
-  }, [scope, series]);
+    return individual ? rows.filter((r) => !r.label.startsWith('Throughput') && !r.label.startsWith('Custo por ponto')) : rows;
+  }, [scope, series, individual]);
 
   // ---- Squads com hotfix acima da média (narrativa de risco)
   const hotSquads = useMemo(() => {
@@ -103,10 +106,12 @@ export default function Overview() {
   const servedBefore = mean(demandData.slice(0, AIDLC_IDX).map((d) => (100 * d.delivered) / d.incoming));
   const servedAfter = mean(demandData.slice(AIDLC_IDX + 1).map((d) => (100 * d.delivered) / d.incoming));
 
-  const thrDelta = pctDelta(beforeAfter[0].a, beforeAfter[0].b);
-  const leadDelta = pctDelta(beforeAfter[2].a, beforeAfter[2].b);
+  const row = (prefix: string) => beforeAfter.find((r) => r.label.startsWith(prefix))!;
+  const thrDelta = individual ? 0 : pctDelta(row('Throughput').a, row('Throughput').b);
+  const leadDelta = pctDelta(row('Lead time').a, row('Lead time').b);
 
-  const summary = buildSummary({
+  // o resumo executivo usa as linhas na ordem completa; não existe na visão individual
+  const summary = individual ? '' : buildSummary({
     thrDelta,
     leadDelta,
     ba: beforeAfter,
@@ -119,20 +124,29 @@ export default function Overview() {
   return (
     <div>
       <PageHeader
-        eyebrow="Visão Executiva"
-        title="A IA está mexendo nos ponteiros?"
+        eyebrow={individual ? 'Visão Executiva · Individual' : 'Visão Executiva'}
+        title={individual ? 'A IA está mexendo nos seus ponteiros?' : 'A IA está mexendo nos ponteiros?'}
         subtitle={
+          individual ? (
+            <>
+              Seus PRs e seu uso do Kiro antes e depois dos marcos <span className="text-accent">Dev Hub</span> e{' '}
+              <span className="text-ai">AI-DLC</span>. Período: <span className="num text-text">{scope.scopeLabel}</span>. Só você vê estes números.
+            </>
+          ) : (
           <>
             Indicadores de velocidade, qualidade e custo da engenharia antes e depois dos marcos{' '}
             <span className="text-accent">Dev Hub</span> e <span className="text-ai">AI-DLC</span>. Período:{' '}
             <span className="num text-text">{scope.scopeLabel}</span>
             {scope.filters.squadId !== 'all' && <> · Squad {squadById[scope.filters.squadId].name}</>}.
           </>
+          )
         }
         actions={
-          <Button variant="primary" onClick={() => setOpen(true)}>
-            <FileText className="h-4 w-4" /> Gerar resumo executivo
-          </Button>
+          !individual && (
+            <Button variant="primary" onClick={() => setOpen(true)}>
+              <FileText className="h-4 w-4" /> Gerar resumo executivo
+            </Button>
+          )
         }
       />
 
@@ -141,9 +155,15 @@ export default function Overview() {
         <KpiCard index={0} icon={<Clock className="h-3.5 w-3.5" />} label="Lead time médio" value={k.lead} format={fmtHours}
           delta={deltaOrNull(k.lead, k.leadPrev, hasPrev)} goodWhenUp={false} spark={sp('leadTimeH')}
           info="Tempo médio entre a abertura e o merge do PR, considerando apenas PRs mergeados." />
-        <KpiCard index={1} icon={<Rocket className="h-3.5 w-3.5" />} label="Throughput" value={k.thr} format={(v) => `${fmtInt(v)} pts`}
-          delta={deltaOrNull(k.thr, k.thrPrev, hasPrev)} spark={sp('throughput')} sparkColor="var(--ok)"
-          info="Story points de histórias concluídas (Done) por sprint." />
+        {individual ? (
+          <KpiCard index={1} icon={<GitPullRequest className="h-3.5 w-3.5" />} label="Seus PRs por sprint" value={scope.prs.length / n} format={(v) => fmtDec(v)}
+            delta={deltaOrNull(scope.prs.length / n, scope.prevPrs.length / Math.max(1, scope.prevSprints.length), hasPrev)} spark={sp('prs')} sparkColor="var(--ok)"
+            info="PRs que você abriu, em média por sprint do período." />
+        ) : (
+          <KpiCard index={1} icon={<Rocket className="h-3.5 w-3.5" />} label="Throughput" value={k.thr} format={(v) => `${fmtInt(v)} pts`}
+            delta={deltaOrNull(k.thr, k.thrPrev, hasPrev)} spark={sp('throughput')} sparkColor="var(--ok)"
+            info="Story points de histórias concluídas (Done) por sprint." />
+        )}
         <KpiCard index={2} icon={<Bot className="h-3.5 w-3.5" />} label="% código gerado por IA" value={k.ai} format={(v) => fmtPct(v)}
           delta={deltaOrNull(k.ai, k.aiPrev, hasPrev)} goodWhenUp spark={sp('aiPct')} sparkColor="var(--ai)" tone="ai"
           info="Média ponderada por linhas do % de código gerado por IA, estimado pela telemetria do Kiro." />
@@ -157,7 +177,7 @@ export default function Overview() {
         <KpiCard index={5} icon={<Wallet className="h-3.5 w-3.5" />} label={`Custo de IA · ${fmtMonth(CURRENT_MONTH + '-01').split(' ')[0]}`} value={k.cost} format={fmtBRL}
           delta={k.costPrev ? pctDelta(k.cost, k.costPrev) : null} goodWhenUp={false} spark={sp('aiCost')} sparkColor="var(--ai)"
           footnote={`proj. ${fmtBRL(k.proj.projection)}`}
-          tone={k.proj.projection > MONTHLY_BUDGET_BRL * (scope.squadCount / 8) ? 'risk' : undefined}
+          tone={!individual && k.proj.projection > MONTHLY_BUDGET_BRL * (scope.squadCount / 8) ? 'risk' : undefined}
           info="Custo do Kiro no mês até hoje, comparado ao mesmo intervalo do mês anterior. A projeção extrapola pelos dias úteis." />
       </div>
 
@@ -171,7 +191,9 @@ export default function Overview() {
         >
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {[
-              { key: 'throughput', name: 'Throughput', unit: 'pontos por sprint', color: 'var(--ok)', f: (v: number) => `${fmtInt(v)} pts`, good: 'up' },
+              individual
+                ? { key: 'aiPct', name: '% código gerado por IA', unit: 'média dos seus PRs', color: 'var(--ai)', f: (v: number) => fmtPct(v), good: 'up' }
+                : { key: 'throughput', name: 'Throughput', unit: 'pontos por sprint', color: 'var(--ok)', f: (v: number) => `${fmtInt(v)} pts`, good: 'up' },
               { key: 'leadTimeH', name: 'Lead time', unit: 'horas, abertura → merge', color: 'var(--accent)', f: fmtHours, good: 'down' },
               { key: 'bugRate', name: 'Taxa de hotfix/revert', unit: '% dos PRs', color: 'var(--risk)', f: (v: number) => fmtPct(v, 1), good: 'down' },
             ].map((m) => {
@@ -205,7 +227,7 @@ export default function Overview() {
               );
             })}
           </div>
-          {hotSquads.length > 0 && (
+          {!individual && hotSquads.length > 0 && (
             <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-risk/30 bg-risk/8 px-3 py-2 text-xs">
               <Bug className="h-4 w-4 text-risk" />
               <span className="text-text">
@@ -225,7 +247,7 @@ export default function Overview() {
 
       <div className="mt-4 grid gap-4 xl:grid-cols-5">
         {/* Antes × Depois */}
-        <FadeIn delay={0.2} className="xl:col-span-3">
+        <FadeIn delay={0.2} className={individual ? 'xl:col-span-5' : 'xl:col-span-3'}>
           <ChartCard
             title="Antes × Depois do AI-DLC"
             description={`Média das sprints S1–S${AIDLC_IDX} (antes) vs. S${AIDLC_IDX + 2}–S14 (depois). A sprint de transição fica de fora.`}
@@ -261,6 +283,7 @@ export default function Overview() {
           </ChartCard>
         </FadeIn>
 
+        {!individual && (
         <div className="grid gap-4 xl:col-span-2">
           <FadeIn delay={0.25}>
             <ChartCard
@@ -307,6 +330,7 @@ export default function Overview() {
             </ChartCard>
           </FadeIn>
         </div>
+        )}
       </div>
 
       <FadeIn delay={0.35} className="mt-4">
@@ -321,7 +345,7 @@ export default function Overview() {
         </div>
       </FadeIn>
 
-      <SummaryDialog open={open} onOpenChange={setOpen} text={summary} />
+      {!individual && <SummaryDialog open={open} onOpenChange={setOpen} text={summary} />}
     </div>
   );
 }

@@ -13,10 +13,31 @@ export type Theme = 'dark' | 'light';
 export type Filters = { squadId: string; sprintId: string; period: number };
 
 export const PERSONAS: Record<Persona, { label: string; short: string; home: string; description: string }> = {
-  vp: { label: 'VP / Head de Engenharia', short: 'VP', home: '/', description: 'Impacto da IA, custo e antes × depois' },
-  tl: { label: 'Tech Manager / Tech Lead', short: 'Tech Lead', home: '/radar', description: 'Alertas de PR e qualidade por squad' },
-  dev: { label: 'Dev', short: 'Dev', home: '/github', description: 'Suas métricas vs. a média do time' },
+  vp: { label: 'VP / Head de Engenharia', short: 'VP', home: '/', description: 'Todos os squads e todas as abas' },
+  tl: { label: 'Tech Manager / Tech Lead', short: 'Tech Lead', home: '/radar', description: 'Todas as abas, com os dados do seu squad' },
+  dev: { label: 'Dev', short: 'Dev', home: '/', description: 'Suas métricas individuais e o KiroCópter' },
 };
+
+// ---------------------------------------------------------------------------
+// Login de teste (protótipo): define a persona e o recorte de dados de quem entra.
+// Não é autenticação de verdade; os dados reais do Jira seguem protegidos pelo código de acesso da API.
+// ---------------------------------------------------------------------------
+export type Session = {
+  email: string;
+  name: string;
+  persona: Persona;
+  /** squad fixo nos filtros (Tech Lead e Dev) */
+  squadId?: string;
+  /** dados restritos a este dev (Dev) */
+  devId?: string;
+};
+
+export const TEST_PASSWORD = 'radar123';
+export const TEST_USERS: Session[] = [
+  { email: 'vp@radar.teste', name: 'VP de Engenharia', persona: 'vp' },
+  { email: 'techlead@radar.teste', name: 'Helena Duarte', persona: 'tl', squadId: 'pricing' },
+  { email: 'dev@radar.teste', name: 'Dev de teste', persona: 'dev', squadId: devById.me.squadId, devId: devById.me.id },
+];
 
 export const PERIODS = [
   { value: 1, label: 'Última sprint' },
@@ -28,8 +49,11 @@ export const PERIODS = [
 type Ctx = {
   theme: Theme;
   toggleTheme: () => void;
+  session: Session | null;
+  /** persona da sessão (VP quando não há sessão) */
   persona: Persona;
-  setPersona: (p: Persona) => void;
+  login: (email: string, password: string) => Session | null;
+  logout: () => void;
   filters: Filters;
   setFilters: (f: Partial<Filters>) => void;
   resetFilters: () => void;
@@ -55,9 +79,13 @@ function writeLS(key: string, v: unknown) {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => readLS('radar.theme', 'dark'));
-  const [persona, setPersonaState] = useState<Persona>(() => readLS('radar.persona', 'vp'));
-  const [filters, setFiltersState] = useState<Filters>(DEFAULT_FILTERS);
+  const [theme, setTheme] = useState<Theme>(() => readLS('radar.theme', 'light'));
+  const [session, setSession] = useState<Session | null>(() => {
+    const email = readLS<string | null>('radar.session', null);
+    return TEST_USERS.find((u) => u.email === email) ?? null;
+  });
+  const defaults = (s: Session | null): Filters => ({ ...DEFAULT_FILTERS, squadId: s?.squadId ?? 'all' });
+  const [filters, setFiltersState] = useState<Filters>(() => defaults(session));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -68,17 +96,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       theme,
       toggleTheme: () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
-      persona,
-      setPersona: (p) => {
-        setPersonaState(p);
-        writeLS('radar.persona', p);
-        setFiltersState(p === 'dev' ? { ...DEFAULT_FILTERS, squadId: devById.me.squadId } : DEFAULT_FILTERS);
+      session,
+      persona: session?.persona ?? 'vp',
+      login: (email, password) => {
+        const user = TEST_USERS.find((u) => u.email === email.trim().toLowerCase());
+        if (!user || password !== TEST_PASSWORD) return null;
+        setSession(user);
+        writeLS('radar.session', user.email);
+        setFiltersState(defaults(user));
+        return user;
+      },
+      logout: () => {
+        setSession(null);
+        writeLS('radar.session', null);
+        setFiltersState(DEFAULT_FILTERS);
       },
       filters,
-      setFilters: (f) => setFiltersState((cur) => ({ ...cur, ...f })),
-      resetFilters: () => setFiltersState(DEFAULT_FILTERS),
+      // Tech Lead e Dev ficam presos ao próprio squad
+      setFilters: (f) => setFiltersState((cur) => ({ ...cur, ...f, squadId: session?.squadId ?? f.squadId ?? cur.squadId })),
+      resetFilters: () => setFiltersState(defaults(session)),
     }),
-    [theme, persona, filters],
+    [theme, session, filters],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
@@ -119,7 +157,8 @@ export type Scope = {
 };
 
 export function useScope(): Scope {
-  const { filters } = useApp();
+  const { filters, session } = useApp();
+  const devId = session?.devId;
   return useMemo(() => {
     const scopeSprints =
       filters.sprintId !== 'all' ? [sprintById[filters.sprintId]] : sprints.slice(-filters.period);
@@ -130,10 +169,11 @@ export function useScope(): Scope {
     const prevIds = new Set(prevSprints.map((s) => s.id));
     const inSquad = (sq: string) => filters.squadId === 'all' || sq === filters.squadId;
 
-    const allPrs = pullRequests.filter((p) => inSquad(p.squadId));
+    // Dev: só os próprios PRs e o próprio uso do Kiro (histórias não têm responsável no mock e ficam no nível do squad)
+    const allPrs = pullRequests.filter((p) => inSquad(p.squadId) && (!devId || p.authorId === devId));
     const allStories = stories.filter((s) => inSquad(s.squadId));
-    const allUsage = kiroUsage.filter((u) => inSquad(devSquad[u.devId]));
-    const devCount = devs.filter((d) => inSquad(d.squadId)).length;
+    const allUsage = kiroUsage.filter((u) => inSquad(devSquad[u.devId]) && (!devId || u.devId === devId));
+    const devCount = devId ? 1 : devs.filter((d) => inSquad(d.squadId)).length;
     const squadCount = filters.squadId === 'all' ? squads.length : 1;
     const scale = squadCount / squads.length;
 
@@ -167,5 +207,5 @@ export function useScope(): Scope {
         scale,
       }),
     };
-  }, [filters]);
+  }, [filters, devId]);
 }

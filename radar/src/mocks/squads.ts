@@ -1,14 +1,14 @@
 import type { Squad } from './types';
 
 export const squads: Squad[] = [
-  { id: 'pricing', name: 'Pricing', techLead: 'Helena Duarte', color: '#22D3EE' },
-  { id: 'midia', name: 'Mídia', techLead: 'Rodrigo Saraiva', color: '#F472B6' },
-  { id: 'vendas', name: 'Vendas', techLead: 'Camila Rezende', color: '#FB923C' },
-  { id: 'financeiro', name: 'Financeiro', techLead: 'Bruno Tavares', color: '#34D399' },
-  { id: 'plataforma', name: 'Plataforma', techLead: 'Marina Coutinho', color: '#60A5FA' },
-  { id: 'dados', name: 'Dados', techLead: 'Thiago Nogueira', color: '#FACC15' },
-  { id: 'academico', name: 'Acadêmico', techLead: 'Patrícia Moraes', color: '#A3E635' },
-  { id: 'portal', name: 'Portal do Aluno', techLead: 'Diego Albuquerque', color: '#E879F9' },
+  { id: 'pricing', name: 'Pricing', techLead: 'Helena Duarte', color: '#4CA0CB' },
+  { id: 'midia', name: 'Mídia', techLead: 'Rodrigo Saraiva', color: '#CC148F' },
+  { id: 'vendas', name: 'Vendas', techLead: 'Camila Rezende', color: '#D25D04' },
+  { id: 'financeiro', name: 'Financeiro', techLead: 'Bruno Tavares', color: '#1A934D' },
+  { id: 'plataforma', name: 'Plataforma', techLead: 'Marina Coutinho', color: '#0C81C0' },
+  { id: 'dados', name: 'Dados', techLead: 'Thiago Nogueira', color: '#A97E19' },
+  { id: 'academico', name: 'Acadêmico', techLead: 'Patrícia Moraes', color: '#61A711' },
+  { id: 'portal', name: 'Portal do Aluno', techLead: 'Diego Albuquerque', color: '#0791A6' },
 ];
 
 export const squadById = Object.fromEntries(squads.map((s) => [s.id, s])) as Record<string, Squad>;

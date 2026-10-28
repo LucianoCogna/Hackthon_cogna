@@ -88,7 +88,7 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
   ]);
 
   const fields = [
-    'summary', 'issuetype', 'status', 'assignee', 'created', 'resolutiondate', 'description', 'parent',
+    'summary', 'issuetype', 'status', 'assignee', 'created', 'resolutiondate', 'description', 'parent', 'labels',
     SP_FIELD, EPIC_LINK_FIELD, SPRINT_FIELD, ...(acField ? [acField.id] : []),
   ];
   const sprints = await boardSprints(cfg.boardId, sprintCount);
@@ -99,6 +99,10 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
   perSprint.forEach((issues, i) =>
     issues.forEach((issue) => lastSprintOf.set(issue.key, { sprint: sprints[i], issue })),
   );
+
+  const labelsOf = (f: Record<string, any>): string[] => (Array.isArray(f.labels) ? f.labels : []);
+  const teamOf = (f: Record<string, any>) =>
+    labelsOf(f).map((l) => cfg.teams?.[l.toLowerCase()]).find(Boolean) ?? null;
 
   const isStory = (f: Record<string, any>) => !f.issuetype?.subtask && !/^(epic|épico)$/i.test(f.issuetype?.name ?? '');
 
@@ -135,6 +139,8 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
       epicKey,
       epicName: parentIsEpic ? (f.parent?.fields?.summary ?? null) : null,
       assignee: f.assignee?.displayName ?? null,
+      labels: labelsOf(f),
+      team: teamOf(f),
       criteria,
       criteriaSource: fieldCriteria.length ? 'campo' : descCriteria.length ? 'descrição' : null,
       criteriaTemplateUnfilled: criteria.length === 0 && TEMPLATE_HINT.test(adfToText(f.description)),
@@ -153,6 +159,7 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
 
   const sprintList: JiraSprint[] = sprints.map((s, i) => {
     const issues = perSprint[i].filter((x) => isStory(x.fields));
+    const withSubtasks = perSprint[i].filter((x) => !/^(epic|épico)$/i.test(x.fields.issuetype?.name ?? ''));
     const end = (s.completeDate ?? s.endDate ?? '').slice(0, 10);
     const start = (s.startDate ?? '').slice(0, 10);
     const pts = (x: RawIssue) => (typeof x.fields[SP_FIELD] === 'number' ? x.fields[SP_FIELD] : 0);
@@ -173,6 +180,16 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
       stories: issues.length,
       pointsCommitted: issues.reduce((a, x) => a + pts(x), 0),
       pointsDone: issues.filter(doneInSprint).reduce((a, x) => a + pts(x), 0),
+      items: withSubtasks.map((x) => ({
+        key: x.key,
+        type: x.fields.issuetype?.name ?? '',
+        points: pts(x),
+        team: teamOf(x.fields),
+        assignee: x.fields.assignee?.displayName ?? null,
+        subtask: !!x.fields.issuetype?.subtask,
+        doneAt: doneInSprint(x) ? doneAt(x, statusCat) : null,
+        cancelled: isCancelled(x.fields.status?.name),
+      })),
     };
   });
 
@@ -185,6 +202,7 @@ async function buildBoard(squadId: string, sprintCount: number): Promise<JiraBoa
     boardId: cfg.boardId,
     boardName: board.name,
     criteriaField: acField,
+    teams: [...new Set(Object.values(cfg.teams ?? {}))],
     sprints: sprintList,
     stories,
     generatedAt: new Date().toISOString(),

@@ -21,12 +21,20 @@ Nenhuma chamada de rede além das fontes do Google. GitHub, Jira e Kiro/AWS são
 | `/github` | GitHub por Dev | Dev / TL |
 | `/aderencia` | GitHub × Jira (auditoria da história) | TL |
 | `/ia` | Uso de IA (Kiro) | todos |
-| `/custo` | Custo & Governança de Modelos | VP |
 | `/radar` | Radar de PRs (alertas) | TL |
-| `/projetos` | Status de Projetos | VP / TL |
 | `/guardrails` | Guardrails & Skills (downloads .md / .zip) | Dev |
 
-O seletor de persona no header muda a aba inicial: VP abre a Visão Executiva, Tech Lead abre o Radar e Dev abre o GitHub por Dev filtrado em "Você".
+### Login de teste e perfis
+
+A tela inicial pede login. São três usuários de teste, todos com a senha `radar123`:
+
+| Usuário | Perfil | O que vê |
+|---|---|---|
+| `vp@radar.teste` | VP | Todas as abas, todos os squads |
+| `techlead@radar.teste` | Tech Lead (Pricing) | Todas as abas, com o filtro preso ao squad dele |
+| `dev@radar.teste` | Dev (Portal do Aluno) | Visão Executiva e Uso de IA só com os próprios dados, e o KiroCópter |
+
+É um login de protótipo, feito no navegador: serve para demonstrar os perfis, não para proteger dados. Os dados reais do Jira continuam protegidos pelo código de acesso da API (`RADAR_ACCESS_CODE`).
 Os filtros globais (Squad, Período, Sprint) valem para todas as abas.
 
 ## Dados
@@ -82,6 +90,7 @@ Vercel Functions em [`api/`](api/). O token do Jira fica só no servidor; o nave
 - Critérios de aceite: vêm do campo próprio do Jira, descoberto pelo nome ou definido em `JIRA_AC_FIELD`. Se a história não tiver esse campo, são lidos da seção "Critérios de aceite" da descrição.
 - Qualidade da spec: heurística determinística (critérios, formato testável, descrição, pontos, épico). Ainda sem LLM.
 - **Local:** crie o `.env.local` a partir do [`.env.example`](.env.example) e rode `npm run dev`. Um plugin do Vite executa as funções de `api/`, sem precisar do `vercel dev`.
-- Nas abas **GitHub por Dev** e **GitHub × Jira**, o seletor **Simulado | Pricing** alterna entre o mock do protótipo e os dados de Pricing.
+- Na aba **GitHub × Jira**, o seletor **Simulado | Jira** alterna entre o mock do protótipo e os dados reais de Pricing. A aba **GitHub por Dev** é só simulada (pontos por pessoa em `src/mocks/devPoints.ts`).
+- Rodando local (fora da Vercel), a API não pede o código de acesso.
 - PRs simulados: cada história real gera PRs do responsável, na sprint dela, cerca de 1,2 PR por ponto (`api/_lib/githubSim.ts`). Quando o GitHub real entrar, o endpoint mantém o mesmo formato com `source: "github"`.
 - `shared/`: código usado tanto pelo navegador quanto por `api/` (o navegador não pode importar de `api/`).

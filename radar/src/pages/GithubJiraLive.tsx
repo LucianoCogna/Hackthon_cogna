@@ -13,23 +13,23 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
-  Rocket,
   Search,
   Sparkles,
 } from 'lucide-react';
 import { useScope } from '@/app/store';
-import { AiPctBar, EmptyState, FadeIn, KpiCard, Legend, PageHeader, RiskBadge, SquadTag } from '@/components/shared';
+import { AiPctBar, EmptyState, FadeIn, KpiCard, PageHeader, RiskBadge, SquadTag } from '@/components/shared';
 import { ChartCard, ChartTooltip, axisProps, gridProps } from '@/components/charts';
 import { Card } from '@/components/ui/card';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input, Progress, Select, Table, Td, Th } from '@/components/ui/misc';
+import { Input, Progress, Select, Table, Tabs, Td, Th } from '@/components/ui/misc';
+import { JiraIndicators } from './JiraIndicators';
 import { Dialog, DialogContent, Tooltip } from '@/components/ui/overlay';
 import { useGithubPrs, useJiraBoard, type GithubPr, type JiraStory } from '@/lib/jiraApi';
 import { consolidatedStatuses, type CriterionStatus } from '../../shared/criteriaAudit';
 import { ErrorState, LoadingState } from '@/components/ApiStates';
 import { mean, prRisk, prSize, sum } from '@/lib/metrics';
-import { fmtDate, fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
+import { fmtDate, fmtDuration, fmtInt, fmtNum, fmtPct, shortSprint } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 const JIRA_SQUAD = 'pricing';
@@ -54,6 +54,7 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
   const [status, setStatus] = useState('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'sprint', dir: 'desc' });
   const [selected, setSelected] = useState<JiraStory | null>(null);
+  const [view, setView] = useState<'indicadores' | 'aderencia'>('indicadores');
 
   const otherSquad = scope.filters.squadId !== 'all' && scope.filters.squadId !== JIRA_SQUAD;
   const data = board.status === 'ok' ? board.data : null;
@@ -112,12 +113,6 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
     prs: prsInScope.length,
   };
 
-  const sprintChart = (data?.sprints ?? []).map((s) => ({
-    label: s.name.replace(/^.*?(\d+)\s*$/, 'S$1'),
-    full: s.name,
-    Comprometidos: s.pointsCommitted,
-    Entregues: s.pointsDone,
-  }));
   const specBuckets = [
     { label: '0–39', n: stories.filter((s) => s.specQuality < 40).length, color: 'var(--risk)' },
     { label: '40–59', n: stories.filter((s) => s.specQuality >= 40 && s.specQuality < 60).length, color: 'var(--warn)' },
@@ -184,6 +179,14 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
       {data && (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Tabs
+              value={view}
+              onChange={setView}
+              items={[
+                { value: 'indicadores', label: 'Indicadores da sprint' },
+                { value: 'aderencia', label: 'Aderência PR × história' },
+              ]}
+            />
             <Select
               label="Sprint"
               value={sprint}
@@ -192,7 +195,7 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
                 { value: 'all', label: `Todas as ${data.sprints.length} sprints` },
                 ...[...data.sprints].reverse().map((s) => ({
                   value: String(s.id),
-                  label: `${s.name}${s.state === 'active' ? ' (ativa)' : ''}`,
+                  label: `Sprint ${shortSprint(s.name)}${s.state === 'active' ? ' (ativa)' : ''}`,
                 })),
               ]}
               className="w-[260px]"
@@ -209,12 +212,13 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
             )}
           </div>
 
+          {view === 'indicadores' ? (
+            <JiraIndicators data={data} sprintId={sprint} />
+          ) : (
+          <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <KpiCard index={0} icon={<FileText className="h-3.5 w-3.5" />} label="Histórias" value={k.stories} format={fmtInt}
               footnote={`${fmtInt(k.pointsCommitted)} pts comprometidos`} info="Itens do quadro (sem subtarefas e épicos) nas sprints selecionadas. Uma história com transbordo conta na sprint mais recente." />
-            <KpiCard index={1} icon={<Rocket className="h-3.5 w-3.5" />} label="Pontos entregues" value={k.pointsDone} format={(v) => `${fmtInt(v)} pts`}
-              footnote={k.pointsCommitted ? `${fmtPct((100 * k.pointsDone) / k.pointsCommitted)} do comprometido` : undefined}
-              info="Story points de itens concluídos dentro do período de cada sprint." />
             <KpiCard index={2} icon={<ListChecks className="h-3.5 w-3.5" />} label="Com critérios de aceite" value={k.withCriteria} format={(v) => fmtPct(v)}
               tone={k.withCriteria < 60 ? 'warn' : undefined}
               footnote={k.templateUnfilled ? `${k.templateUnfilled} com template não preenchido` : undefined} info="Histórias com critérios no campo próprio do Jira ou numa seção 'Critérios de aceite' da descrição." />
@@ -251,31 +255,7 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
             </div>
           </FadeIn>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-3">
-            <FadeIn delay={0.1}>
-              <ChartCard
-                title="Pontos por sprint"
-                description="Comprometidos × entregues"
-                actions={<Legend items={[{ label: 'Comprometidos', color: 'var(--human)' }, { label: 'Entregues', color: 'var(--ok)' }]} />}
-                className="h-full"
-              >
-                <div className="h-[230px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={sprintChart} margin={{ top: 8, right: 4, left: -18, bottom: 0 }} barGap={2}>
-                      <CartesianGrid {...gridProps} />
-                      <XAxis dataKey="label" {...axisProps} />
-                      <YAxis {...axisProps} allowDecimals={false} />
-                      <RTooltip
-                        content={<ChartTooltip format={(v) => `${fmtInt(v)} pts`} labelFormat={(l) => sprintChart.find((s) => s.label === l)?.full ?? l} />}
-                        cursor={{ fill: 'var(--accent-soft)' }}
-                      />
-                      <Bar isAnimationActive={false} dataKey="Comprometidos" fill="var(--human)" radius={[4, 4, 0, 0]} />
-                      <Bar isAnimationActive={false} dataKey="Entregues" fill="var(--ok)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </ChartCard>
-            </FadeIn>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <FadeIn delay={0.15}>
               <ChartCard title="Qualidade da spec" description="Histórias por faixa (heurística)" className="h-full">
                 <BucketChart data={specBuckets} unit="histórias" />
@@ -380,6 +360,8 @@ export default function GithubJiraLive({ switcher }: { switcher: React.ReactNode
               )}
             </Card>
           </FadeIn>
+          </>
+          )}
         </>
       )}
 

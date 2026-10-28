@@ -3,76 +3,86 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* ---------- Tokens · Design System Cogna ----------
-   Paleta extraída de cogna.com.br: roxo #5219A1 (primária), #7433DA / #8038F0 (apoio),
-   roxos profundos #28114B / #180B2C, lavanda #F7F1FF, amarelo #FFAD01 (destaque),
-   neutros #2D3135 / #423950 / #DBD9DE. Tipografia: Poppins (primária) e Roboto (secundária).
-   No RADAR, o roxo é a marca e as ações; o amarelo Cogna é a cor recorrente de "feito por IA". */
+/* ---------- Tokens · Martech Design System (Cogna) ----------
+   Fonte: martech-design-system (Storybook › Design System Docs › Colors / Typography).
+   primary #4700C2 (light #7B16F2, dark #2A0070) · neutros #1E1E1E / #757575 / #E8E8E8 / #F2F2F2
+   success #008564 · warning #FFA500 · destructive #DD392D · info #4CA0CB · gráficos chart-1…14.
+   Sidebar clara (#F0F0F0) com o primary no item ativo. Raio .5rem. Tipografia: Poppins e Roboto.
+   Ajustes do RADAR: o laranja de alerta em texto usa chart-8 (#D25D04) para ter contraste em fundo claro,
+   e o "feito por IA" usa o dourado chart-10 (#A97E19). */
 :root {
-  --bg: #f7f5fb;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f3eefb;
-  --border: #e4deee;
-  --text: #2d3135;
-  --muted: #6b6478;
-  --accent: #5219a1;
-  --accent-strong: #7433da;
-  --accent-soft: rgba(82, 25, 161, 0.09);
-  --on-accent: #ffffff;
-  --ok: #138a52;
-  --warn: #e8590c;
-  --risk: #d32f2f;
-  --ai: #c77d00;
-  --ai-soft: rgba(255, 173, 1, 0.16);
-  --grid: #ece7f4;
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-4: #e87ba4;
-  --human: #a39cb0;
-  --shadow: 0 1px 2px rgba(40, 17, 75, 0.06), 0 6px 18px rgba(40, 17, 75, 0.05);
-  /* sidebar: roxo Cogna em ambos os temas */
-  --side-bg: #5219a1;
-  --side-bg-2: #3d127a;
-  --side-text: #ffffff;
-  --side-muted: rgba(255, 255, 255, 0.72);
-  --side-hover: rgba(255, 255, 255, 0.1);
-  --side-active: rgba(255, 255, 255, 0.16);
-  --side-border: rgba(255, 255, 255, 0.12);
-  --brand-yellow: #ffad01;
+  --surface-2: #f2f2f2;
+  --border: #e8e8e8;
+  --text: #1e1e1e;
+  --muted: #757575;
+  --accent: #4700c2;
+  --accent-strong: #7b16f2;
+  --accent-soft: rgba(71, 0, 194, 0.07);
+  --on-accent: #f0f0f0;
+  --ok: #008564;
+  --warn: #d25d04;
+  --risk: #dd392d;
+  --info: #4ca0cb;
+  --ai: #a97e19;
+  --ai-soft: rgba(255, 165, 0, 0.14);
+  --grid: #efefef;
+  --series-1: #0c81c0;
+  --series-2: #d25d04;
+  --series-3: #008564;
+  --series-4: #cc148f;
+  --human: #b8b8b8;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.06);
+  /* marca fixa (painel do login), igual nos dois temas */
+  --brand: #4700c2;
+  --brand-dark: #2a0070;
+  --brand-yellow: #ffa500;
+  /* sidebar do DS: clara, com o primary no item ativo */
+  --side-bg: #f0f0f0;
+  --side-bg-2: #f0f0f0;
+  --side-text: #242429;
+  --side-muted: #5c5c66;
+  --side-hover: rgba(71, 0, 194, 0.06);
+  --side-active: rgba(71, 0, 194, 0.1);
+  --side-active-text: #4700c2;
+  --side-border: #e2e2e2;
+  --side-surface: #ffffff;
 }
 
 [data-theme='dark'] {
-  --bg: #120a20;
-  --surface: #1b1030;
-  --surface-2: #24163f;
-  --border: #33234f;
-  --text: #f1ecf9;
-  --muted: #a99fbd;
-  --accent: #a77bf3;
-  --accent-strong: #c5a3f8;
-  --accent-soft: rgba(167, 123, 243, 0.14);
-  --on-accent: #180b2c;
-  --ok: #34d399;
-  --warn: #ff8a4c;
-  --risk: #f87171;
-  --ai: #ffad01;
-  --ai-soft: rgba(255, 173, 1, 0.14);
-  --grid: #2a1c44;
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #d55181;
-  --human: #6e6680;
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
-  --side-bg: #28114b;
-  --side-bg-2: #180b2c;
-  --side-text: #ffffff;
-  --side-muted: rgba(255, 255, 255, 0.66);
-  --side-hover: rgba(255, 255, 255, 0.07);
-  --side-active: rgba(167, 123, 243, 0.2);
-  --side-border: rgba(255, 255, 255, 0.08);
-  --brand-yellow: #ffad01;
+  --bg: #0a0911;
+  --surface: #151320;
+  --surface-2: #1e1c2c;
+  --border: #27272a;
+  --text: #fef5ff;
+  --muted: #a1a1aa;
+  --accent: #c099ff;
+  --accent-strong: #d3b8ff;
+  --accent-soft: rgba(192, 153, 255, 0.12);
+  --on-accent: #1a0b33;
+  --ok: #2fb487;
+  --warn: #f28c3b;
+  --risk: #ef5b50;
+  --info: #6fb6da;
+  --ai: #e6b93a;
+  --ai-soft: rgba(255, 165, 0, 0.14);
+  --grid: #1f1d2b;
+  --series-1: #3a9bd6;
+  --series-2: #e8803a;
+  --series-3: #2fb487;
+  --series-4: #e04aa8;
+  --human: #5a5866;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.45);
+  --side-bg: #151320;
+  --side-bg-2: #151320;
+  --side-text: #fef5ff;
+  --side-muted: #a1a1aa;
+  --side-hover: rgba(192, 153, 255, 0.08);
+  --side-active: rgba(192, 153, 255, 0.14);
+  --side-active-text: #d3b8ff;
+  --side-border: #27272a;
+  --side-surface: #1e1c2c;
 }
 
 @theme inline {
@@ -97,6 +107,12 @@
   --color-side-hover: var(--side-hover);
   --color-side-active: var(--side-active);
   --color-side-border: var(--side-border);
+  --color-side-active-text: var(--side-active-text);
+  --color-side-surface: var(--side-surface);
+  --color-info: var(--info);
+  --color-brand: var(--brand);
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
   --font-sans: 'Poppins', 'Roboto', ui-sans-serif, system-ui, sans-serif;
   --font-body: 'Roboto', 'Poppins', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -128,9 +144,8 @@ body {
   transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 .card-glow:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
-    0 0 28px -6px color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 .bg-grid {
   background-image: radial-gradient(color-mix(in srgb, var(--accent) 10%, transparent) 1px, transparent 1px);

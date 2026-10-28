@@ -419,6 +419,6 @@ export function AuditDialog({ row, onClose }: { row: Row | null; onClose: () => 
 // Fonte de dados: simulado (protótipo) ou Jira real (por enquanto, só Pricing)
 // ---------------------------------------------------------------------------
 export default function GithubJira() {
-  const [source, switcher] = useSourceSwitch('radar.aderencia.source', 'Jira · Pricing');
+  const [source, switcher] = useSourceSwitch('radar.aderencia.source', 'Jira');
   return source === 'live' ? <GithubJiraLive switcher={switcher} /> : <GithubJiraMock switcher={switcher} />;
 }

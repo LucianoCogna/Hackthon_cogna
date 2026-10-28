@@ -10,9 +10,7 @@ import Overview from './pages/Overview';
 import GithubDevs from './pages/GithubDevs';
 import GithubJira from './pages/GithubJira';
 import AiUsage from './pages/AiUsage';
-import AiCost from './pages/AiCost';
 import PrRadar from './pages/PrRadar';
-import Projects from './pages/Projects';
 import Crew from './pages/Crew';
 
 const router = createBrowserRouter([
@@ -24,9 +22,7 @@ const router = createBrowserRouter([
       { path: 'github', element: <GithubDevs /> },
       { path: 'aderencia', element: <GithubJira /> },
       { path: 'ia', element: <AiUsage /> },
-      { path: 'custo', element: <AiCost /> },
       { path: 'radar', element: <PrRadar /> },
-      { path: 'projetos', element: <Projects /> },
       { path: 'crew', element: <Crew /> },
       { path: '*', element: <Overview /> },
     ],

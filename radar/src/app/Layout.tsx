@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bot,
   CalendarRange,
   ChevronsLeft,
   ChevronsRight,
-  FolderKanban,
   GitCompareArrows,
   GitPullRequest,
   LayoutDashboard,
+  LogOut,
   Menu,
   Moon,
   Radar,
   RotateCcw,
   Sun,
   Users,
-  Wallet,
   Fan,
   X,
-  UserCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { PERIODS, PERSONAS, useApp, useScope, type Persona } from './store';
@@ -30,18 +28,26 @@ import { squads } from '@/mocks/squads';
 import { sprints } from '@/mocks/sprints';
 import { prRisk } from '@/lib/metrics';
 import { CognaLogo } from '@/components/CognaLogo';
+import { DevAvatar } from '@/components/shared';
+import { RadarMark } from '@/components/RadarMark';
+import Login from '@/pages/Login';
 
+/** personas: quem pode abrir a aba (o Dev vê só a própria visão nas abas que acessa) */
 type NavItem = { to: string; label: string; icon: React.ElementType; personas: Persona[]; tag?: string };
 export const NAV: NavItem[] = [
-  { to: '/', label: 'Visão Executiva', icon: LayoutDashboard, personas: ['vp'] },
-  { to: '/github', label: 'GitHub por Dev', icon: GitPullRequest, personas: ['tl', 'dev'] },
-  { to: '/aderencia', label: 'GitHub × Jira', icon: GitCompareArrows, personas: ['tl'] },
+  { to: '/', label: 'Visão Executiva', icon: LayoutDashboard, personas: ['vp', 'tl', 'dev'] },
+  { to: '/github', label: 'GitHub por Dev', icon: GitPullRequest, personas: ['vp', 'tl'] },
+  { to: '/aderencia', label: 'GitHub × Jira', icon: GitCompareArrows, personas: ['vp', 'tl'] },
   { to: '/ia', label: 'Uso de IA', icon: Bot, personas: ['vp', 'tl', 'dev'] },
-  { to: '/custo', label: 'Custo & Governança', icon: Wallet, personas: ['vp'] },
-  { to: '/radar', label: 'Radar de PRs', icon: Radar, personas: ['tl'] },
-  { to: '/projetos', label: 'Status de Projetos', icon: FolderKanban, personas: ['vp', 'tl'] },
+  { to: '/radar', label: 'Radar de PRs', icon: Radar, personas: ['vp', 'tl'] },
   { to: '/crew', label: 'KiroCópter', icon: Fan, personas: ['vp', 'tl', 'dev'] },
 ];
+
+/** Rotas fora do menu (ex.: /guardrails) ficam livres. */
+export function canAccess(persona: Persona, pathname: string) {
+  const item = NAV.find((n) => (n.to === '/' ? pathname === '/' : pathname === n.to || pathname.startsWith(n.to + '/')));
+  return !item || item.personas.includes(persona);
+}
 
 function readCollapsed() {
   try {
@@ -52,28 +58,20 @@ function readCollapsed() {
 }
 
 function Logo({ compact, onBrand = true }: { compact?: boolean; onBrand?: boolean }) {
-  // onBrand: sobre a sidebar roxa (branco + amarelo Cogna); fora dela, usa a cor primária
-  const c = onBrand ? 'var(--brand-yellow)' : 'var(--accent)';
+  // onBrand: dentro da sidebar (textos com as cores da sidebar); fora dela, cores do conteúdo
+  const c = 'var(--accent)';
   return (
     <div className="flex items-center gap-2.5">
       <div
-        className={cn('relative h-8 w-8 shrink-0 rounded-lg border', onBrand ? 'border-white/20 bg-white/10' : 'border-accent/30 bg-accent-soft')}
+        className={cn('relative h-8 w-8 shrink-0 rounded-lg border', 'border-accent/30 bg-accent-soft')}
       >
-        <svg viewBox="0 0 32 32" className="absolute inset-0">
-          <circle cx="16" cy="16" r="10" fill="none" stroke={c} strokeWidth="1.5" opacity=".45" />
-          <circle cx="16" cy="16" r="5" fill="none" stroke={c} strokeWidth="1.5" opacity=".7" />
-          <g className="radar-sweep">
-            <path d="M16 16 L16 5 A11 11 0 0 1 25 10 Z" fill={c} opacity=".28" />
-            <path d="M16 16 L25 10" stroke={c} strokeWidth="2" strokeLinecap="round" />
-          </g>
-          <circle cx="16" cy="16" r="1.8" fill={c} />
-        </svg>
+        <RadarMark color={c} className="absolute inset-0" />
       </div>
       {!compact && (
         <div className="leading-tight">
           <div className={cn('text-sm font-bold tracking-[0.18em]', onBrand ? 'text-side-text' : 'text-text')}>RADAR</div>
           <div className={cn('flex items-center gap-1.5 text-[10px]', onBrand ? 'text-side-muted' : 'text-muted')}>
-            Engenharia ·<CognaLogo height={12} className={onBrand ? 'text-side-text' : 'text-accent'} />
+            Engenharia ·<CognaLogo height={12} className="text-accent" />
           </div>
         </div>
       )}
@@ -85,9 +83,8 @@ function SidebarNav({ collapsed, onNavigate, criticalCount }: { collapsed: boole
   const { persona } = useApp();
   return (
     <nav className="flex flex-col gap-0.5">
-      {NAV.map((item) => {
+      {NAV.filter((item) => item.personas.includes(persona)).map((item) => {
         const Icon = item.icon;
-        const recommended = item.personas.includes(persona);
         const link = (
           <NavLink
             key={item.to}
@@ -98,7 +95,7 @@ function SidebarNav({ collapsed, onNavigate, criticalCount }: { collapsed: boole
               cn(
                 'group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-colors',
                 isActive
-                  ? 'bg-side-active font-semibold text-side-text'
+                  ? 'bg-side-active font-semibold text-side-active-text'
                   : 'text-side-muted hover:bg-side-hover hover:text-side-text',
                 collapsed && 'justify-center px-0',
               )
@@ -109,7 +106,7 @@ function SidebarNav({ collapsed, onNavigate, criticalCount }: { collapsed: boole
                 {isActive && (
                   <motion.span
                     layoutId="nav-active"
-                    className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-brand-yellow shadow-[0_0_12px_var(--brand-yellow)]"
+                    className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-side-active-text"
                   />
                 )}
                 <span className="relative">
@@ -120,10 +117,7 @@ function SidebarNav({ collapsed, onNavigate, criticalCount }: { collapsed: boole
                 </span>
                 {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                 {!collapsed && item.to === '/radar' && criticalCount > 0 && (
-                  <span className="num rounded-full bg-[#ff5c5c] px-1.5 py-0.5 text-[10px] font-bold text-white">{criticalCount}</span>
-                )}
-                {!collapsed && recommended && item.to !== '/radar' && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-yellow/80" title={`Recomendado para ${PERSONAS[persona].short}`} />
+                  <span className="num rounded-full bg-risk px-1.5 py-0.5 text-[10px] font-semibold text-white">{criticalCount}</span>
                 )}
               </>
             )}
@@ -141,36 +135,52 @@ function SidebarNav({ collapsed, onNavigate, criticalCount }: { collapsed: boole
   );
 }
 
-function PersonaSwitch() {
-  const { persona, setPersona } = useApp();
+/** Usuário logado, no rodapé da sidebar (roxa). Recolhida, mostra só o avatar e o botão de sair. */
+function UserMenu({ collapsed }: { collapsed?: boolean }) {
+  const { session, logout } = useApp();
   const navigate = useNavigate();
-  return (
-    <div className="flex items-center rounded-lg border border-border bg-surface-2 p-0.5" role="radiogroup" aria-label="Visão">
-      {(Object.keys(PERSONAS) as Persona[]).map((p) => (
-        <Tooltip key={p} side="bottom" content={<><b>{PERSONAS[p].label}</b><br />{PERSONAS[p].description}</>}>
-          <button
-            role="radio"
-            aria-checked={persona === p}
-            onClick={() => {
-              setPersona(p);
-              navigate(PERSONAS[p].home);
-            }}
-            className={cn(
-              'cursor-pointer rounded-md px-2.5 py-1.5 text-xs font-medium transition-all',
-              persona === p ? 'bg-accent text-on-accent shadow-[0_0_14px_-4px_var(--accent)]' : 'text-muted hover:text-text',
-            )}
-          >
-            {PERSONAS[p].short}
-          </button>
+  if (!session) return null;
+  const squad = session.squadId && squads.find((s) => s.id === session.squadId)?.name;
+  const exit = () => {
+    logout();
+    navigate('/', { replace: true });
+  };
+  const logoutBtn = (
+    <Tooltip side={collapsed ? 'right' : 'top'} content="Sair">
+      <button onClick={exit} aria-label="Sair"
+        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-side-muted hover:bg-side-hover hover:text-side-text">
+        <LogOut className="h-4 w-4" />
+      </button>
+    </Tooltip>
+  );
+  if (collapsed)
+    return (
+      <div className="mb-2 flex flex-col items-center gap-1">
+        <Tooltip side="right" content={<><b>{session.name}</b><br />{PERSONAS[session.persona].short}{squad && ` · ${squad}`}</>}>
+          <span><DevAvatar name={session.name} size={32} /></span>
         </Tooltip>
-      ))}
+        {logoutBtn}
+      </div>
+    );
+  return (
+    <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-side-border bg-side-surface p-2.5">
+      <DevAvatar name={session.name} size={32} />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="truncate text-xs font-semibold text-side-text">{session.name}</div>
+        <div className="truncate text-[10px] text-side-muted">
+          {PERSONAS[session.persona].short}
+          {squad && <> · {squad}</>}
+        </div>
+      </div>
+      {logoutBtn}
     </div>
   );
 }
 
 function FilterBar() {
-  const { filters, setFilters, resetFilters } = useApp();
-  const dirty = filters.squadId !== 'all' || filters.sprintId !== 'all' || filters.period !== 4;
+  const { filters, setFilters, resetFilters, session } = useApp();
+  const locked = session?.squadId;
+  const dirty = filters.squadId !== (locked ?? 'all') || filters.sprintId !== 'all' || filters.period !== 4;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select
@@ -178,7 +188,11 @@ function FilterBar() {
         label="Squad"
         value={filters.squadId}
         onChange={(v) => setFilters({ squadId: v })}
-        options={[{ value: 'all', label: 'Todos os squads' }, ...squads.map((s) => ({ value: s.id, label: s.name }))]}
+        options={
+          locked
+            ? squads.filter((s) => s.id === locked).map((s) => ({ value: s.id, label: s.name }))
+            : [{ value: 'all', label: 'Todos os squads' }, ...squads.map((s) => ({ value: s.id, label: s.name }))]
+        }
         className="w-[188px]"
       />
       <Select
@@ -211,7 +225,7 @@ function FilterBar() {
 }
 
 export function Layout() {
-  const { theme, toggleTheme, persona } = useApp();
+  const { theme, toggleTheme, persona, session } = useApp();
   const scope = useScope();
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -230,12 +244,15 @@ export function Layout() {
 
   const criticalCount = useMemo(() => scope.prs.filter((p) => prRisk(p) >= 70).length, [scope.prs]);
 
+  if (!session) return <Login />;
+  if (!canAccess(persona, location.pathname)) return <Navigate to={PERSONAS[persona].home} replace />;
+
   return (
     <div className="flex min-h-screen bg-bg">
       {/* Sidebar desktop */}
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 flex-col bg-[linear-gradient(180deg,var(--side-bg),var(--side-bg-2))] lg:flex',
+          'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-side-border bg-[var(--side-bg)] lg:flex',
           collapsed ? 'w-[68px]' : 'w-[252px]',
         )}
         style={{ transition: 'width .25s ease' }}
@@ -248,10 +265,11 @@ export function Layout() {
         </div>
         <div className="border-t border-side-border p-3">
           {!collapsed && (
-            <div className="mb-3 rounded-lg border border-side-border bg-white/5 p-3 text-[11px] leading-relaxed text-side-muted">
+            <div className="mb-3 rounded-lg border border-side-border bg-side-surface p-3 text-[11px] leading-relaxed text-side-muted">
               <span className="font-semibold text-side-text">Protótipo.</span> Jira (Pricing) conectado em GitHub × Jira. GitHub e Kiro/AWS ainda simulados.
             </div>
           )}
+          <UserMenu collapsed={collapsed} />
           <button
             onClick={() => setCollapsed((c) => !c)}
             className="flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg text-xs text-side-muted hover:bg-side-hover hover:text-side-text"
@@ -274,7 +292,7 @@ export function Layout() {
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
-              className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[linear-gradient(180deg,var(--side-bg),var(--side-bg-2))] lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-side-border bg-[var(--side-bg)] lg:hidden"
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
@@ -286,8 +304,11 @@ export function Layout() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="p-3">
+              <div className="flex-1 overflow-y-auto p-3">
                 <SidebarNav collapsed={false} onNavigate={() => setMobileOpen(false)} criticalCount={criticalCount} />
+              </div>
+              <div className="border-t border-side-border p-3">
+                <UserMenu />
               </div>
             </motion.aside>
           </>
@@ -306,11 +327,6 @@ export function Layout() {
             </button>
             <div className="lg:hidden">
               <Logo compact onBrand={false} />
-            </div>
-            <div className="flex items-center gap-2">
-              <UserCircle2 className="hidden h-4 w-4 text-muted sm:block" />
-              <span className="hidden text-xs text-muted sm:inline">Visão</span>
-              <PersonaSwitch />
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <FilterBar />

@@ -19,8 +19,9 @@ export const SPRINT_FIELD = 'customfield_10020';
 export const EPIC_LINK_FIELD = 'customfield_10014';
 
 /** Quadros do Jira por squad do RADAR. Por enquanto, só Pricing (exemplo). */
-export const SQUAD_BOARDS: Record<string, { boardId: number; name: string }> = {
-  pricing: { boardId: 8075, name: 'Pricing' },
+/** teams: label do Jira → frente do squad (o Pricing separa Dev, Dados e DS por label) */
+export const SQUAD_BOARDS: Record<string, { boardId: number; name: string; teams?: Record<string, string> }> = {
+  pricing: { boardId: 8075, name: 'Pricing', teams: { dev_pricing: 'Dev', dados_pricing: 'Dados', ds_pricing: 'DS' } },
 };
 
 function config() {
