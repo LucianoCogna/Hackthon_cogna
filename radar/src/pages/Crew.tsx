@@ -678,7 +678,7 @@ export default function Crew() {
       </div>
 
       <h2 className="mb-1 mt-10 text-lg font-semibold">Guardrails e Skills do kit</h2>
-      <p className="mb-3 text-sm text-muted">As boas praticas vem embutidas: skills que os agentes usam sozinhos, um steering sempre ativo e um hook deterministico (sem LLM).</p>
+      <p className="mb-3 text-sm text-muted">As boas práticas vêm embutidas: skills que os agentes usam sozinhos, um steering sempre ativo e um hook determinístico (sem LLM).</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {SKILLS_INFO.map((s2, i) => (
           <FadeIn key={s2.id} delay={i * 0.04}>
@@ -692,54 +692,54 @@ export default function Crew() {
         <FadeIn delay={0.16}>
           <Card className="card-glow h-full p-5">
             <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-accent" /><span className="num text-sm font-semibold">radar-crew</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">Steering sempre ativo com o contexto e as regras do crew: pt-BR, evidencia, LGPD, PR enxuto.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Steering sempre ativo com o contexto e as regras do crew: pt-BR, evidência, LGPD, PR enxuto.</p>
             <Badge tone="accent" className="mt-3">steering</Badge>
           </Card>
         </FadeIn>
         <FadeIn delay={0.2}>
           <Card className="card-glow h-full p-5">
             <div className="flex items-center gap-2"><Webhook className="h-4 w-4 text-warn" /><span className="num text-sm font-semibold">pr-size-hint</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">Hook deterministico que avisa (nao bloqueia) quando o PR passa de 1000 linhas. Sem LLM, custo zero.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Hook determinístico que avisa (não bloqueia) quando o PR passa de 1000 linhas. Sem LLM, custo zero.</p>
             <Badge tone="warn" className="mt-3">hook</Badge>
           </Card>
         </FadeIn>
       </div>
 
-      <h2 className="mb-1 mt-10 text-lg font-semibold">Padrao de PR do kit</h2>
-      <p className="mb-3 text-sm text-muted">O template de PR (.github/pull_request_template.md) padroniza cada entrega em 5 grupos. O grupo Uso de IA e estruturado: o pr-auditor e scripts de CI leem dele.</p>
+      <h2 className="mb-1 mt-10 text-lg font-semibold">Padrão de PR do kit</h2>
+      <p className="mb-3 text-sm text-muted">O template de PR (.github/pull_request_template.md) padroniza cada entrega em 5 grupos. O grupo Uso de IA é estruturado: o pr-auditor e scripts de CI leem dele.</p>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <FadeIn delay={0}>
           <Card className="card-glow h-full p-5">
             <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /><span className="text-sm font-semibold">O que este PR faz</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">1 a 3 linhas sobre o que muda e por que. Da contexto rapido ao revisor.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">1 a 3 linhas sobre o que muda e por quê. Dá contexto rápido ao revisor.</p>
 <Badge className="mt-3">resumo</Badge>
           </Card>
         </FadeIn>
         <FadeIn delay={0.04}>
           <Card className="card-glow h-full p-5">
             <div className="flex items-center gap-2"><GitPullRequest className="h-4 w-4 text-accent" /><span className="text-sm font-semibold">Card do Jira</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">Closes CARD (qualquer prefixo). Liga a entrega a historia e aos criterios de aceite que o jira-adherence audita.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Closes CARD (qualquer prefixo). Liga a entrega à história e aos critérios de aceite que o jira-adherence audita.</p>
 <Badge className="mt-3">rastreabilidade</Badge>
           </Card>
         </FadeIn>
         <FadeIn delay={0.08}>
           <Card className="card-glow h-full p-5">
             <div className="flex items-center gap-2"><Bot className="h-4 w-4 text-ai" /><span className="text-sm font-semibold">Uso de IA (para o RADAR)</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">Bloco estruturado e auto-declarado (nao e telemetria). Campos machine-readable: o pr-auditor usa ia-pct e revisao-assistida no score e cruza tarefa x modelo com a kirocop-sugere-modelo pra apontar modelo inadequado.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Bloco estruturado e auto-declarado (não é telemetria). Campos machine-readable: o pr-auditor usa ia-pct e revisao-assistida no score e cruza tarefa x modelo com a kirocop-sugere-modelo pra apontar modelo inadequado.</p>
 <div className="mt-3 flex flex-wrap gap-1"><Badge tone="ai">tarefa-principal</Badge><Badge tone="ai">modelo-predominante</Badge><Badge tone="ai">ia-pct</Badge><Badge tone="ai">revisao-assistida</Badge></div>
           </Card>
         </FadeIn>
         <FadeIn delay={0.12}>
           <Card className="card-glow h-full p-5">
             <div className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-accent" /><span className="text-sm font-semibold">Checklist</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">Criterios cobertos no diff, testes, sem secrets/PII, tamanho gerenciavel e rodou o pr-auditor antes do review.</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Critérios cobertos no diff, testes, sem secrets/PII, tamanho gerenciável e rodou o pr-auditor antes do review.</p>
 <Badge className="mt-3">qualidade</Badge>
           </Card>
         </FadeIn>
         <FadeIn delay={0.16}>
           <Card className="card-glow h-full p-5">
-            <div className="flex items-center gap-2"><Image className="h-4 w-4 text-accent" /><span className="text-sm font-semibold">Evidencia</span></div>
-            <p className="mt-2 text-xs leading-relaxed text-muted">Print, saida de teste, link ou trecho que prova que funciona.</p>
+            <div className="flex items-center gap-2"><Image className="h-4 w-4 text-accent" /><span className="text-sm font-semibold">Evidência</span></div>
+            <p className="mt-2 text-xs leading-relaxed text-muted">Print, saída de teste, link ou trecho que prova que funciona.</p>
 <Badge className="mt-3">prova</Badge>
           </Card>
         </FadeIn>
