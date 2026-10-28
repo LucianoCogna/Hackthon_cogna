@@ -3,7 +3,7 @@ name: analise-starter
 description: "KiroCópter · SPEC/BUILD: abre a análise de um card do Jira (qualquer prefixo, ex. CRPR-, DENA-, PLAT-...). Classifica o tipo do card, cria a estrutura de pasta e o README no padrão da squad, puxando o contexto do Jira (MCP) ou do conteúdo colado. Antes de cada tarefa, sugere o modelo adequado."
 tools: ["read", "write", "shell"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
   - "file://.kiro/skills/kirocop-sugere-modelo/SKILL.md"
   - "file://.kiro/skills/kirocop-spec-ears/SKILL.md"
   - "file://.kiro/skills/kirocop-git-conventions/SKILL.md"
