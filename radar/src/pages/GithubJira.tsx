@@ -12,13 +12,13 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts';
-import { CheckCircle2, AlertTriangle, XCircle, Search, Link2Off, RotateCcw, FileText, GitPullRequest } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, Search, Link2Off, RotateCcw, FileText, GitPullRequest, ListChecks, Sparkles } from 'lucide-react';
 import { useScope } from '@/app/store';
 import { AiPctBar, AiSeal, DevAvatar, EmptyState, FadeIn, KpiCard, PageHeader, RiskBadge, SquadTag } from '@/components/shared';
 import { ChartCard, ChartTooltip, axisProps, gridProps } from '@/components/charts';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input, Progress, Select, Table, Td, Th } from '@/components/ui/misc';
+import { Input, Progress, Select, Table, Tabs, Td, Th } from '@/components/ui/misc';
 import { Dialog, DialogContent } from '@/components/ui/overlay';
 import { criterionStatuses, type CriterionStatus } from '@/mocks/stories';
 import { squads } from '@/mocks/squads';
@@ -27,8 +27,10 @@ import type { PullRequest, Story } from '@/mocks/types';
 import { groupBy, mean, prRisk, prSize, storyAdherence, sum } from '@/lib/metrics';
 import { fmtDuration, fmtInt, fmtNum, fmtPct } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { useSourceSwitch } from '@/components/SourceSwitch';
-import GithubJiraLive from './GithubJiraLive';
+import { rng } from '../../shared/random';
+import { JiraIndicators } from './JiraIndicators';
+import { mockJiraSprints } from '@/mocks/jiraBoard';
+import { REF_DATE, sprintById } from '@/mocks/sprints';
 
 const adhColor = (v: number | null) =>
   v === null ? 'var(--muted)' : v >= 80 ? 'var(--ok)' : v >= 60 ? 'var(--warn)' : 'var(--risk)';
@@ -38,8 +40,27 @@ const statusLabel = { Done: 'Concluída', 'In Progress': 'Em andamento', 'To Do'
 
 type Row = { story: Story; prs: PullRequest[]; adherence: number | null };
 
-function GithubJiraMock({ switcher }: { switcher: React.ReactNode }) {
+type CriteriaSource = 'campo' | 'descrição' | 'template' | 'nenhum';
+/** Onde a história guarda os critérios (simulado): specs piores tendem a ter template vazio ou nenhum critério. */
+function criteriaSourceOf(s: Story): CriteriaSource {
+  const w: [CriteriaSource, number][] =
+    s.specQuality >= 70 ? [['campo', 60], ['descrição', 35], ['template', 3], ['nenhum', 2]]
+    : s.specQuality >= 50 ? [['campo', 40], ['descrição', 40], ['template', 12], ['nenhum', 8]]
+    : [['campo', 15], ['descrição', 30], ['template', 30], ['nenhum', 25]];
+  let x = rng('criteria-src:' + s.key).float(0, 100);
+  for (const [k, v] of w) if ((x -= v) < 0) return k;
+  return 'campo';
+}
+
+export default function GithubJira() {
   const scope = useScope();
+  const [view, setView] = useState<'indicadores' | 'aderencia'>('indicadores');
+  // quadro no formato do Jira, simulado (sem conexão com o Jira): janela do período, mínimo de 6 sprints
+  const board = useMemo(
+    () => mockJiraSprints(scope.inSquad, Math.max(6, scope.filters.period)),
+    [scope.inSquad, scope.filters.period],
+  );
+  const boardSprintId = scope.filters.sprintId === 'all' ? 'all' : String(sprintById[scope.filters.sprintId].index + 1);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
   const [sortKey, setSortKey] = useState<'adherence' | 'prs' | 'reopen' | 'points'>('adherence');
@@ -75,7 +96,26 @@ function GithubJiraMock({ switcher }: { switcher: React.ReactNode }) {
     reopened: scope.stories.filter((s) => s.reopenCount > 0).length,
     reopenTotal: sum(scope.stories.map((s) => s.reopenCount)),
     spec: mean(scope.stories.map((s) => s.specQuality)),
+    stories: scope.stories.length,
+    points: sum(scope.stories.map((s) => s.points)),
   };
+  const sources = scope.stories.map(criteriaSourceOf);
+  const kc = {
+    withCriteria: sources.length ? (100 * sources.filter((c) => c === 'campo' || c === 'descrição').length) / sources.length : 0,
+    template: sources.filter((c) => c === 'template').length,
+  };
+  const specBuckets = [
+    { label: '0–39', n: scope.stories.filter((s) => s.specQuality < 40).length, color: 'var(--risk)' },
+    { label: '40–59', n: scope.stories.filter((s) => s.specQuality >= 40 && s.specQuality < 60).length, color: 'var(--warn)' },
+    { label: '60–79', n: scope.stories.filter((s) => s.specQuality >= 60 && s.specQuality < 80).length, color: 'var(--accent)' },
+    { label: '80–100', n: scope.stories.filter((s) => s.specQuality >= 80).length, color: 'var(--ok)' },
+  ];
+  const criteriaSources = [
+    { label: 'Campo', n: sources.filter((c) => c === 'campo').length, color: 'var(--accent)' },
+    { label: 'Descrição', n: sources.filter((c) => c === 'descrição').length, color: 'var(--accent)' },
+    { label: 'Template', n: kc.template, color: 'var(--warn)' },
+    { label: 'Nenhum', n: sources.filter((c) => c === 'nenhum').length, color: 'var(--warn)' },
+  ];
 
   const bySquad = squads
     .filter((s) => scope.inSquad(s.id))
@@ -125,26 +165,42 @@ function GithubJiraMock({ switcher }: { switcher: React.ReactNode }) {
       <PageHeader
         eyebrow="GitHub × Jira"
         title="O código entregue bate com a história?"
-        subtitle="Aderência dos PRs aos critérios de aceite, idas e vindas de requisito e qualidade das specs. A análise PR × história é feita por IA (simulada neste protótipo)."
-        actions={
-          <>
-            {switcher}
-            <AiSeal />
-          </>
-        }
+        subtitle="Entrega por sprint, aderência dos PRs aos critérios de aceite, idas e vindas de requisito e qualidade das specs. Dados simulados neste protótipo."
+        actions={<AiSeal />}
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <KpiCard index={0} label="Aderência média PR × história" value={k.adherence} format={(v) => fmtPct(v)} tone={k.adherence < 75 ? 'warn' : undefined}
-          info="Percentual dos critérios de aceite da história encontrados no diff do PR, segundo a análise por LLM." />
-        <KpiCard index={1} icon={<GitPullRequest className="h-3.5 w-3.5" />} label="PRs por história (média)" value={k.prsPerStory} format={(v) => fmtNum(v, 1)}
-          info="Média de PRs vinculados a cada história que tem ao menos um PR." />
-        <KpiCard index={2} icon={<Link2Off className="h-3.5 w-3.5" />} label="PRs sem história vinculada" value={k.unlinked} format={(v) => fmtPct(v, 1)}
-          info="PRs sem chave do Jira no título ou na branch. Não é possível auditar a aderência deles." />
+      <div className="mb-4">
+        <Tabs
+          value={view}
+          onChange={setView}
+          items={[
+            { value: 'indicadores', label: 'Indicadores da sprint' },
+            { value: 'aderencia', label: 'Aderência PR × história' },
+          ]}
+        />
+      </div>
+
+      {view === 'indicadores' ? (
+        <JiraIndicators sprints={board} sprintId={boardSprintId} today={REF_DATE} />
+      ) : (
+      <>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard index={0} icon={<FileText className="h-3.5 w-3.5" />} label="Histórias" value={k.stories} format={fmtInt}
+          footnote={`${fmtInt(k.points)} pts comprometidos`} info="Itens do quadro (sem subtarefas e épicos) nas sprints do período." />
+        <KpiCard index={1} icon={<ListChecks className="h-3.5 w-3.5" />} label="Com critérios de aceite" value={kc.withCriteria} format={(v) => fmtPct(v)}
+          tone={kc.withCriteria < 60 ? 'warn' : undefined} footnote={kc.template ? `${kc.template} com template não preenchido` : undefined}
+          info="Histórias com critérios no campo próprio do Jira ou numa seção 'Critérios de aceite' da descrição." />
+        <KpiCard index={2} icon={<Sparkles className="h-3.5 w-3.5" />} label="Qualidade média da spec" value={k.spec} format={(v) => `${fmtInt(v)}/100`}
+          info="Clareza da spec avaliada por IA: critérios testáveis, escopo, dependências e casos de borda." />
         <KpiCard index={3} icon={<RotateCcw className="h-3.5 w-3.5" />} label="Histórias reabertas" value={k.reopened} format={fmtInt} footnote={`${k.reopenTotal} idas e vindas`}
           info="Histórias que voltaram de status por mudança ou dúvida de requisito." />
-        <KpiCard index={4} icon={<FileText className="h-3.5 w-3.5" />} label="Qualidade média de spec/PRD" value={k.spec} format={(v) => `${fmtInt(v)}/100`}
-          info="Clareza do PRD/spec avaliada por IA: critérios testáveis, escopo, dependências e casos de borda." />
+        <KpiCard index={4} label="Aderência média PR × história" value={k.adherence} format={(v) => fmtPct(v)} tone={k.adherence < 75 ? 'warn' : undefined}
+          info="Percentual dos critérios de aceite da história encontrados no diff do PR, segundo a análise por LLM." />
+        <KpiCard index={5} icon={<GitPullRequest className="h-3.5 w-3.5" />} label="PRs por história" value={k.prsPerStory} format={(v) => fmtNum(v, 1)}
+          footnote={`${fmtInt(scope.prs.length)} PRs no período`} info="Média de PRs vinculados a cada história que tem ao menos um PR." />
+        <KpiCard index={6} icon={<Link2Off className="h-3.5 w-3.5" />} label="PRs sem história vinculada" value={k.unlinked} format={(v) => fmtPct(v, 1)}
+          info="PRs sem chave do Jira no título ou na branch. Não é possível auditar a aderência deles." />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -223,6 +279,19 @@ function GithubJiraMock({ switcher }: { switcher: React.ReactNode }) {
         </FadeIn>
       </div>
 
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <FadeIn delay={0.2}>
+          <ChartCard title="Qualidade da spec" description="Histórias por faixa de qualidade" className="h-full">
+            <BucketChart data={specBuckets} unit="histórias" />
+          </ChartCard>
+        </FadeIn>
+        <FadeIn delay={0.22}>
+          <ChartCard title="Onde estão os critérios de aceite" description="Origem: campo do Jira, descrição, template não preenchido ou nenhum" className="h-full">
+            <BucketChart data={criteriaSources} unit="histórias" />
+          </ChartCard>
+        </FadeIn>
+      </div>
+
       <FadeIn delay={0.25} className="mt-4">
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
@@ -292,6 +361,8 @@ function GithubJiraMock({ switcher }: { switcher: React.ReactNode }) {
           )}
         </Card>
       </FadeIn>
+      </>
+      )}
 
       <AuditDialog row={selected} onClose={() => setSelected(null)} />
     </div>
@@ -415,10 +486,22 @@ export function AuditDialog({ row, onClose }: { row: Row | null; onClose: () => 
   );
 }
 
-// ---------------------------------------------------------------------------
-// Fonte de dados: simulado (protótipo) ou Jira real (por enquanto, só Pricing)
-// ---------------------------------------------------------------------------
-export default function GithubJira() {
-  const [source, switcher] = useSourceSwitch('radar.aderencia.source', 'Jira');
-  return source === 'live' ? <GithubJiraLive switcher={switcher} /> : <GithubJiraMock switcher={switcher} />;
+function BucketChart({ data, unit }: { data: { label: string; n: number; color: string }[]; unit: string }) {
+  return (
+    <div className="h-[230px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 18, right: 4, left: -20, bottom: 0 }}>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="label" {...axisProps} interval={0} />
+          <YAxis {...axisProps} allowDecimals={false} />
+          <RTooltip content={<ChartTooltip format={(v) => `${v} ${unit}`} />} cursor={{ fill: 'var(--accent-soft)' }} />
+          <Bar isAnimationActive={false} dataKey="n" name={unit} radius={[4, 4, 0, 0]} barSize={40} label={{ position: 'top', fill: 'var(--muted)', fontSize: 11 }}>
+            {data.map((d) => (
+              <Cell key={d.label} fill={d.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }

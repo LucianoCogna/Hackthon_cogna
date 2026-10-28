@@ -1,6 +1,6 @@
-// Indicadores de entrega direto do Jira (inspirados no painel de Indicadores do DPOS Hub),
-// enxutos: 4 KPIs, burndown real da sprint, comprometido × entregue, pontuação por dev e por tipo.
-import { useMemo } from 'react';
+// Indicadores de entrega no formato do Jira (inspirados no painel de Indicadores do DPOS Hub),
+// enxutos: 4 KPIs, burndown da sprint, comprometido × entregue, pontuação por dev e por tipo.
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -17,18 +17,16 @@ import { CalendarClock, CheckCheck, Rocket, Undo2 } from 'lucide-react';
 import { DevAvatar, EmptyState, FadeIn, KpiCard, Legend } from '@/components/shared';
 import { ChartCard, ChartTooltip, axisProps, gridProps } from '@/components/charts';
 import { Table, Td, Th } from '@/components/ui/misc';
-import type { JiraBoardResponse, JiraSprint, JiraSprintItem } from '@/lib/jiraApi';
+import type { JiraSprint, JiraSprintItem } from '../../api/_lib/types';
 import { mean, sum } from '@/lib/metrics';
 import { fmtInt, fmtPct, shortSprint } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 const DAY = 86_400_000;
+const DEV_LIMIT = 12;
 
-/** hoje no fuso do navegador (AAAA-MM-DD) */
-const localToday = () => {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-};
+/** "Sprint 12" fica como está; "[CRPR] SP 26.1.10" vira "Sprint 26.1.10". */
+const sprintTitle = (name: string) => (/\d+\.\d+/.test(name) ? `Sprint ${shortSprint(name)}` : name);
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const rateTone = (v: number) => (v >= 90 ? 'text-ok' : v >= 75 ? 'text-warn' : 'text-risk');
 
@@ -60,7 +58,7 @@ function history(sprints: JiraSprint[]) {
 }
 
 /** Dias úteis entre o início e o fim da sprint, com os pontos restantes ao fim de cada dia. */
-function burndown(s: JiraSprint) {
+function burndown(s: JiraSprint, today: string) {
   if (!s.start || !s.end) return [];
   const it = pointItems(s);
   const total = sum(it.map((i) => i.points));
@@ -69,7 +67,6 @@ function burndown(s: JiraSprint) {
     const wd = new Date(t).getUTCDay();
     if (wd !== 0 && wd !== 6) days.push(new Date(t).toISOString().slice(0, 10));
   }
-  const today = localToday();
   return days.map((d, i) => ({
     day: d,
     label: ddmm(d),
@@ -114,26 +111,30 @@ function byType(items: JiraSprintItem[]) {
   return [...m.values()].sort((a, b) => Number(a.subtask) - Number(b.subtask) || b.points - a.points || b.items - a.items);
 }
 
-export function JiraIndicators({ data, sprintId }: { data: JiraBoardResponse; sprintId: string }) {
-  const h = useMemo(() => history(data.sprints), [data]);
+/**
+ * sprints: quadro no formato do Jira (hoje simulado em src/mocks/jiraBoard.ts).
+ * sprintId: 'all' ou o id de uma sprint. today: o "hoje" do burndown (AAAA-MM-DD).
+ */
+export function JiraIndicators({ sprints, sprintId, today }: { sprints: JiraSprint[]; sprintId: string; today: string }) {
+  const [allDevs, setAllDevs] = useState(false);
+  const h = useMemo(() => history(sprints), [sprints]);
   const focus =
-    (sprintId !== 'all' && data.sprints.find((s) => String(s.id) === sprintId)) ||
-    data.sprints.find((s) => s.state === 'active') ||
-    data.sprints[data.sprints.length - 1];
+    (sprintId !== 'all' && sprints.find((s) => String(s.id) === sprintId)) ||
+    sprints.find((s) => s.state === 'active') ||
+    sprints[sprints.length - 1];
   const fs = sprintStat(focus);
-  const burn = useMemo(() => burndown(focus), [focus]);
-  const today = localToday();
+  const burn = useMemo(() => burndown(focus, today), [focus, today]);
   const dayIdx = burn.findIndex((b) => b.day >= today);
 
   // pontuação por dev e por tipo: na sprint escolhida, ou em todas as sprints da janela
-  const scoped = sprintId === 'all' ? data.sprints : data.sprints.filter((s) => String(s.id) === sprintId);
-  const scopeLabel = sprintId === 'all' ? `${scoped.length} sprints` : `Sprint ${shortSprint(scoped[0]?.name ?? '')}`;
+  const scoped = sprintId === 'all' ? sprints : sprints.filter((s) => String(s.id) === sprintId);
+  const scopeLabel = sprintId === 'all' ? `${scoped.length} sprints` : sprintTitle(scoped[0]?.name ?? '');
   const scopedItems = useMemo(() => scoped.flatMap((s) => s.items), [scoped]);
   const devs = useMemo(() => byDev(scopedItems), [scopedItems]);
   const types = useMemo(() => byType(scopedItems), [scopedItems]);
   const maxDev = Math.max(1, ...devs.map((d) => d.committed));
 
-  const bars = data.sprints.map((s) => {
+  const bars = sprints.map((s) => {
     const st = sprintStat(s);
     return {
       label: shortSprint(s.name),
@@ -157,7 +158,7 @@ export function JiraIndicators({ data, sprintId }: { data: JiraBoardResponse; sp
         <KpiCard index={2} icon={<Undo2 className="h-3.5 w-3.5" />} label="Transbordo" value={h.spill} format={(v) => fmtPct(v)} goodWhenUp={false}
           tone={h.spill > 25 ? 'warn' : undefined} spark={h.closed.map((c) => (c.items ? (100 * c.spilled) / c.items : 0))} sparkColor="var(--warn)"
           footnote="dos itens não fecharam na sprint" info="% dos itens comprometidos (sem subtarefas) que não foram concluídos dentro da sprint. Cancelados ficam de fora." />
-        <KpiCard index={3} icon={<CalendarClock className="h-3.5 w-3.5" />} label={`Sprint ${shortSprint(focus.name)}${focus.state === 'active' ? ' · ativa' : ''}`}
+        <KpiCard index={3} icon={<CalendarClock className="h-3.5 w-3.5" />} label={`${sprintTitle(focus.name)}${focus.state === 'active' ? ' · ativa' : ''}`}
           value={fs.committed ? (100 * fs.done) / fs.committed : 0} format={(v) => fmtPct(v)}
           footnote={`${fmtInt(fs.done)} de ${fmtInt(fs.committed)} pts · ${fs.items} itens`}
           info="Pontos já concluídos na sprint em foco. Escolha outra sprint no seletor acima." />
@@ -166,7 +167,7 @@ export function JiraIndicators({ data, sprintId }: { data: JiraBoardResponse; sp
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <FadeIn delay={0.1} className="lg:col-span-3">
           <ChartCard
-            title={`Burndown · Sprint ${shortSprint(focus.name)}`}
+            title={`Burndown · ${sprintTitle(focus.name)}`}
             description={`Pontos restantes por dia útil${focus.start && focus.end ? ` · ${ddmm(focus.start)} → ${ddmm(focus.end)}` : ''}. Usa a data real de conclusão de cada item.`}
             actions={<Legend items={[{ label: 'Ideal', color: 'var(--muted)', dashed: true }, { label: 'Restante', color: 'var(--accent)' }]} />}
             className="h-full"
@@ -180,7 +181,7 @@ export function JiraIndicators({ data, sprintId }: { data: JiraBoardResponse; sp
                   <RTooltip content={<ChartTooltip format={(v) => `${fmtInt(v)} pts`} />} />
                   {focus.state === 'active' && dayIdx >= 0 && (
                     <ReferenceLine x={burn[dayIdx].label} stroke="var(--brand-yellow)" strokeDasharray="3 3"
-                      label={{ value: 'hoje', position: 'insideTopLeft', fill: 'var(--muted)', fontSize: 10 }} />
+                      label={{ value: 'hoje', position: dayIdx > burn.length / 2 ? 'insideTopRight' : 'insideTopLeft', fill: 'var(--muted)', fontSize: 10 }} />
                   )}
                   <Line isAnimationActive={false} dataKey="Ideal" stroke="var(--muted)" strokeDasharray="5 4" strokeWidth={1.5} dot={false} />
                   <Line isAnimationActive={false} dataKey="Restante" stroke="var(--accent)" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls={false} />
@@ -237,7 +238,7 @@ export function JiraIndicators({ data, sprintId }: { data: JiraBoardResponse; sp
               <EmptyState description="Nenhum item atribuído neste período." />
             ) : (
               <div className="space-y-1">
-                {devs.map((d) => (
+                {(allDevs ? devs : devs.slice(0, DEV_LIMIT)).map((d) => (
                   <div key={d.name} className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-2">
                     <DevAvatar name={d.name} size={26} />
                     <div className="w-40 min-w-0 truncate text-sm sm:w-48">{d.name}</div>
@@ -254,6 +255,11 @@ export function JiraIndicators({ data, sprintId }: { data: JiraBoardResponse; sp
                     </span>
                   </div>
                 ))}
+                {devs.length > DEV_LIMIT && (
+                  <button onClick={() => setAllDevs((v) => !v)} className="mt-1 w-full cursor-pointer rounded-lg py-1.5 text-xs font-medium text-accent hover:bg-accent-soft">
+                    {allDevs ? 'Mostrar menos' : `Ver todas as ${devs.length} pessoas`}
+                  </button>
+                )}
               </div>
             )}
           </ChartCard>

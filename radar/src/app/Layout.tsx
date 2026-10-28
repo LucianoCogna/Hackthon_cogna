@@ -266,7 +266,7 @@ export function Layout() {
         <div className="border-t border-side-border p-3">
           {!collapsed && (
             <div className="mb-3 rounded-lg border border-side-border bg-side-surface p-3 text-[11px] leading-relaxed text-side-muted">
-              <span className="font-semibold text-side-text">Protótipo.</span> Jira (Pricing) conectado em GitHub × Jira. GitHub e Kiro/AWS ainda simulados.
+              <span className="font-semibold text-side-text">Protótipo.</span> Dados simulados de Jira, GitHub e Kiro/AWS, sem conexão com os sistemas.
             </div>
           )}
           <UserMenu collapsed={collapsed} />

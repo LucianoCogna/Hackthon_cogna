@@ -90,7 +90,7 @@ Vercel Functions em [`api/`](api/). O token do Jira fica só no servidor; o nave
 - Critérios de aceite: vêm do campo próprio do Jira, descoberto pelo nome ou definido em `JIRA_AC_FIELD`. Se a história não tiver esse campo, são lidos da seção "Critérios de aceite" da descrição.
 - Qualidade da spec: heurística determinística (critérios, formato testável, descrição, pontos, épico). Ainda sem LLM.
 - **Local:** crie o `.env.local` a partir do [`.env.example`](.env.example) e rode `npm run dev`. Um plugin do Vite executa as funções de `api/`, sem precisar do `vercel dev`.
-- Na aba **GitHub × Jira**, o seletor **Simulado | Jira** alterna entre o mock do protótipo e os dados reais de Pricing. A aba **GitHub por Dev** é só simulada (pontos por pessoa em `src/mocks/devPoints.ts`).
+- O front-end não chama mais a API: todas as abas usam dados simulados, por segurança. Em **GitHub × Jira**, as sub-abas "Indicadores da sprint" e "Aderência PR × história" usam um quadro simulado no formato do Jira (`src/mocks/jiraBoard.ts`). Em **GitHub por Dev**, os pontos por pessoa vêm de `src/mocks/devPoints.ts`. As funções de `api/` continuam no repositório, protegidas pelo código de acesso.
 - Rodando local (fora da Vercel), a API não pede o código de acesso.
 - PRs simulados: cada história real gera PRs do responsável, na sprint dela, cerca de 1,2 PR por ponto (`api/_lib/githubSim.ts`). Quando o GitHub real entrar, o endpoint mantém o mesmo formato com `source: "github"`.
 - `shared/`: código usado tanto pelo navegador quanto por `api/` (o navegador não pode importar de `api/`).
