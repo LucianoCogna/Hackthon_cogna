@@ -67,7 +67,7 @@ type Agent = {
 // ---------------------------------------------------------------------------
 const AGENTS: Agent[] = [
   {
-    id: "radar-orchestrator",
+    id: "kirocopter",
     role: "Torre de controle do crew",
     category: "orchestrate",
     does: "Recebe o pedido do Tech Lead ou do dev e roteia para o especialista: abrir card, auditar PR × card ou calcular risco. Consolida a resposta.",
@@ -76,7 +76,7 @@ const AGENTS: Agent[] = [
     solves:
       'Transforma um pedido solto ("não sei por onde começar") em próximos passos.',
     md: `---
-name: radar-orchestrator
+name: kirocopter
 description: "KiroCópter · Orquestrador: recebe o pedido do Tech Lead/dev e aciona o agente certo — analise-starter (abrir card), jira-adherence (PR x card) ou pr-auditor (risco do PR) — e consolida a resposta."
 tools: ["read", "invoke_sub_agent", "orchestrate_subagent"]
 resources:
@@ -96,7 +96,7 @@ permissions:
         - "default"
 ---
 
-Você é o radar-orchestrator do KiroCópter, a torre de controle do crew. Recebe um pedido e roteia para o especialista:
+Você é o kirocopter do KiroCópter, a torre de controle do crew. Recebe um pedido e roteia para o especialista:
 
 - Abrir/organizar a análise de um card do Jira (qualquer prefixo [A-Z]+-\\d+), criar pasta/README → delegue ao analise-starter.
 - Auditar se um PR bate com os critérios do card → delegue ao jira-adherence.
@@ -312,6 +312,187 @@ Nada aqui é específico de uma squad. Os agentes detectam o contexto do reposit
 - Custo consciente: antes da tarefa, pensar se precisa mesmo de LLM. Commit/lint/formatação são determinísticos (hook, custo zero).
 `;
 
+// README completo (com arte ASCII) e LOGO reais do .kiro/ do repo
+const README_MD = `\`\`\`
+          +#+++++ -#-#
+          +#--##++++++ +#######
+                    --#  ++-   --+
+               #++#+++#   #+--+##
+             -+++#+#######+
+            +++++-+#   - ## #           K I R O C O P T E R
+           ++++++-##+++++##+ #          Build Once, Use Everywhere
+          #++++#+-++###++++#####
+          ##--+###+          ###        crew de agentes do Kiro
+           #       -##   ##     -        para a engenharia da VP Tech
+          #  -     ###  ###     #
+         -  --     #    ##      #        o esquadrao que sobrevoa a
+      #                        #         engenharia e aponta onde pousar.
+       -###+-                 -
+         #                   #
+         #                  #
+          #------++--     ##
+                  ##-- +#-
+\`\`\`
+
+# KiroCópter — crew de engenharia da VP Tech
+
+Kit reutilizável de **agentes + skills + hook** do Kiro. O RADAR *mede* se a IA está
+melhorando a engenharia; o **KiroCópter** é o esquadrão que *age* sobre isso: abre a análise
+de um card, audita se o PR bate com o card, calcula o risco do PR e sugere o modelo certo
+por tarefa.
+
+Feito pelo esquadrão **Kirocópteros**. Sobrevoa a engenharia e aponta onde pousar atenção.
+
+## Instalação (Build Once, Use Everywhere)
+
+1. Copie a pasta \`.kiro/\` deste kit para a **raiz do seu repositório** (merge com o \`.kiro/\`
+   que já existir).
+2. Abra o Kiro no repositório. Os 4 agentes aparecem no **seletor de agentes**.
+3. O hook \`pr-size-guard\` precisa de **Node.js no PATH** (\`node --version\` deve responder).
+   É a única dependência externa, e vale **só para o hook** — os 4 agentes e as 3 skills
+   funcionam sem Node. Se a squad não usar Node, remova \`.kiro/hooks/\` e o resto do kit
+   segue funcionando.
+
+Nada aqui é específico de uma squad: os agentes detectam o prefixo do Jira e as convenções
+do repo. Instale e use.
+
+## O que vem no kit
+
+| Peça | Caminho | Categoria | O que faz |
+|---|---|---|---|
+| \`kirocopter\` | \`.kiro/agents/\` | ORQUESTRA | Torre de controle: recebe o pedido e aciona o agente certo |
+| \`analise-starter\` | \`.kiro/agents/\` | SPEC/BUILD | Abre a análise de um card do Jira (qualquer prefixo): cria pasta + README no padrão da squad, puxa o contexto do card e sugere o modelo antes de cada tarefa |
+| \`jira-adherence\` | \`.kiro/agents/\` | SPEC | Audita o diff do PR contra os critérios de aceite do card, critério a critério, com evidência |
+| \`pr-auditor\` | \`.kiro/agents/\` | RUN | Calcula o risk score do PR e, se crítico, redige o pedido de re-review |
+| \`kirocop-sugere-modelo\` | \`.kiro/skills/\` | — | Política de modelo por tarefa; aponta quando a tarefa nem precisa de LLM |
+| \`kirocop-spec-ears\` | \`.kiro/skills/\` | — | Template de critérios de aceite (EARS / Dado-Quando-Então) |
+| \`kirocop-revisao-pr\` | \`.kiro/skills/\` | — | Checklist de revisão de PR com código gerado por IA |
+| \`kirocop-git-conventions\` | \`.kiro/skills/\` | — | Nomenclatura de branch, commit e PR (universal; não impõe git flow) |
+| \`pr-size-hint\` | \`.kiro/hooks/\` | RUN | **Avisa** (não bloqueia) quando o PR passa de 1000 linhas, sugerindo quebrar. Determinístico, **sem LLM** |
+| Spec de exemplo | \`.kiro/specs/exemplo-checkout-demo001/\` | SPEC | requirements → design → tasks do card fictício DEMO-001 |
+| Template de PR | \`.github/pull_request_template.md\` | RUN | Corpo de PR com card + % de IA + checklist (sem LLM) |
+| Onboarding | \`.kiro/steering/kirocop-onboarding.md\` | — | Guia: qual agente chamar em cada situação |
+
+Cobertura do desafio: **SPEC** (analise-starter, jira-adherence, spec de exemplo),
+**BUILD** (analise-starter, sugere-modelo), **RUN** (pr-auditor, pr-size-hint, template de PR).
+
+## Jira: dois caminhos (nunca trava)
+
+O \`analise-starter\` e o \`jira-adherence\` funcionam de dois jeitos:
+
+1. **Com MCP do Jira** — puxam título, descrição, tipo e critérios de aceite direto do card.
+2. **Sem MCP** — você cola o conteúdo do card (ou já existe um README local da análise).
+
+### Prefixo genérico
+
+O Jira da VP Tech tem vários prefixos. Os agentes detectam o padrão \`[A-Z]+-\\d+\`
+(\`CRPR-123\`, \`DENA-1046\`, \`PLAT-7\`, \`DATA-55\`, ...) e classificam o **tipo** do card
+(incidente, story, spike) para escolher o template de pasta. Tipo desconhecido cai num
+default e o agente pergunta a convenção da squad.
+
+## Demo ao vivo (pasta \`exemplo-demo/\`)
+
+Prova de que o crew funciona, sem depender de MCP:
+
+Os arquivos de \`exemplo-demo/\` são **fictícios** (prefixo \`DEMO-\`), só para demonstração —
+não expõem nada real da VP Tech.
+
+1. Selecione o agente **\`pr-auditor\`** no Kiro.
+2. Peça: *"calcule o risco do PR em \`exemplo-demo/DEMO-PR-1.diff\`"*.
+   Esperado: score **crítico (70+)** — 99% IA, revisão ~180× mais rápida que o esperado,
+   sem testes, PR grande — e um pedido de re-review pronto.
+3. Selecione **\`jira-adherence\`**. Peça: *"audite o \`DEMO-PR-1.diff\` contra o
+   \`DEMO-001-card.md\`"*.
+   Esperado: critério 1 (validação de CPF) **não encontrado** no diff, critério 4 (testes)
+   **não encontrado**; aderência ~50%.
+4. Selecione **\`analise-starter\`**. Peça: *"abra a análise do card DEMO-001"* (cole o card ou
+   deixe ele puxar do Jira). Esperado: ele anuncia o modelo sugerido antes de cada passo e
+   cria a pasta + README no padrão.
+
+## Schema
+
+Os agentes são arquivos Markdown (\`.kiro/agents/<nome>.md\`) no schema atual do Kiro
+(IDE 1.x / CLI V3): frontmatter com \`tools\` (\`read\`, \`write\`, \`shell\`, \`invoke_sub_agent\`),
+\`resources\` (\`file://\`) e \`permissions.rules\` (capability + effect + match) para o controle
+de acesso. O corpo do arquivo é o prompt. O formato antigo (JSON com \`allowedTools\` /
+\`toolsSettings\`) é ignorado pelo Kiro novo até ser convertido com \`/upgrade-agent\`.
+Squads ainda em Kiro 0.x / CLI 2.x precisam do formato antigo (ver o histórico do git).
+Ref.: https://kiro.dev/docs/custom-agents/configuration-reference/
+`;
+
+// arquivos de demonstracao (pasta exemplo-demo/ na raiz do zip)
+const DEMO_CARD = `# DEMO-001 — Checkout: validar CPF e aplicar cupom
+
+> ⚠️ **Card fictício, só para demonstração do KiroCópter.** Não é um card real da VP Tech.
+> O prefixo \`DEMO-\` é proposital para deixar claro que é um exemplo sintético.
+
+**Tipo:** Story
+**Squad:** exemplo (Vendas)
+**Assignee:** dev fictício
+**Sprint:** exemplo
+
+## Descrição
+No checkout da API de vendas, precisamos validar o CPF do comprador e aplicar o cupom de
+desconto antes de fechar o pedido.
+
+## Critérios de aceite
+
+1. QUANDO o comprador informar um CPF, O SISTEMA DEVE validar o dígito verificador e
+   rejeitar CPF inválido com mensagem clara.
+2. DADO um cupom válido, QUANDO o pedido for fechado, ENTÃO o desconto DEVE ser aplicado
+   ao total.
+3. QUANDO o cupom estiver expirado, O SISTEMA DEVE recusar o cupom e manter o preço cheio.
+4. O endpoint de checkout DEVE ter testes cobrindo CPF inválido e cupom expirado.
+`;
+
+const DEMO_DIFF = `DEMO-PR-1 — vendas-checkout-api — "feat: checkout completo (cupom + refactor)"
+autor: dev fictício | squad: exemplo | card: DEMO-001
+
+>> Arquivo FICTÍCIO, só para demonstração do KiroCópter. Não é um PR real.
+
+metadados (não vêm do git — informar ao pr-auditor):
+  aiGeneratedPct: 99
+  aiAssistedReview: false
+  reviewTimeMin: 0.5        (aprovado em ~30 segundos)
+  testsAdded: false
+  ciStatus: passed
+
+diff --git a/src/checkout/coupon.ts b/src/checkout/coupon.ts
+new file mode 100644
++ export function applyCoupon(total: number, coupon: Coupon): number {
++   if (coupon.expired) return total;        // cupom expirado mantém preço cheio
++   return total - total * coupon.percent;
++ }
++ // ... +640 linhas geradas: refactor do módulo de pedidos, renomes, helpers ...
+
+diff --git a/src/checkout/order.ts b/src/checkout/order.ts
++ // refactor amplo do fluxo de pedido (muitas linhas reescritas pela IA)
+
+NOTA: não há nenhuma alteração referente a validação de CPF (critério 1),
+nem testes novos (critério 4). total do diff: ~660 linhas.
+`;
+
+const LOGO_TXT = `
+          +#+++++ -#-#
+          +#--##++++++ +#######
+                    --#  ++-   --+
+               #++#+++#   #+--+##
+             -+++#+#######+
+            +++++-+#   - ## #           K I R O C O P T E R
+           ++++++-##+++++##+ #          Build Once, Use Everywhere
+          #++++#+-++###++++#####
+          ##--+###+          ###        crew de agentes do Kiro
+           #       -##   ##     -        para a engenharia da VP Tech
+          #  -     ###  ###     #
+         -  --     #    ##      #        o esquadrao que sobrevoa a
+      #                        #         engenharia e aponta onde pousar.
+       -###+-                 -
+         #                   #
+         #                  #
+          #------++--     ##
+                  ##-- +#-
+`;
+
 const KIT_FILES: Record<string, string> = {
   "steering/radar-crew.md": STEERING_RADAR_CREW,
   "steering/kirocop-onboarding.md": `---
@@ -327,9 +508,9 @@ inclusion: manual
 | "Peguei o card X, quero começar" | analise-starter | cria pasta + README, puxa o card, sugere o modelo por tarefa |
 | "Esse PR bate com o card?" | jira-adherence | audita critério a critério, com evidência |
 | "Esse PR é arriscado?" | pr-auditor | calcula o risk score e, se crítico, escreve o re-review |
-| "Não sei por onde começar" | radar-orchestrator | recebe o pedido e aciona o especialista certo |
+| "Não sei por onde começar" | kirocopter | recebe o pedido e aciona o especialista certo |
 
-Na dúvida, fale com o radar-orchestrator — ele direciona. Jira funciona com MCP ou card
+Na dúvida, fale com o kirocopter — ele direciona. Jira funciona com MCP ou card
 colado, e qualquer prefixo [A-Z]+-\\d+ (CRPR-, DENA-, PLAT-, DATA-...). Experimente sem
 risco com a pasta exemplo-demo/ (card e PR fictícios DEMO-).
 `,
@@ -512,30 +693,8 @@ testar (atende R4) e não acoplam a validação ao framework.
 - [ ] 3. Integrar no checkoutHandler _(R1, R2, R3 · Sonnet)_
 - [ ] 4. Revisão e PR — rodar pr-auditor e jira-adherence antes do review _(Sonnet)_
 `,
-  "README.md": `# KiroCópter — crew de engenharia da VP Tech
-
-Kit reutilizável de agentes + skills + hook do Kiro. O RADAR mede se a IA melhora a
-engenharia; o KiroCópter age sobre isso: abre a análise de um card, audita se o PR bate
-com o card, calcula o risco do PR e sugere o modelo por tarefa.
-
-## Instalação (Build Once, Use Everywhere)
-1. Copie a pasta \`.kiro/\` para a raiz do seu repositório (merge com o que já existir).
-2. Abra o Kiro: os 4 agentes aparecem no seletor de agentes.
-3. O hook pr-size-hint precisa de Node.js no PATH (é a única dependência externa, e só
-   para o hook — os agentes e skills funcionam sem Node).
-
-| Peça | Caminho | Categoria |
-|---|---|---|
-${AGENTS.map((a) => `| ${a.id} | .kiro/agents/${a.id}.md | ${CATEGORY[a.category].label} |`).join("\n")}
-${SKILLS_INFO.map((s) => `| ${s.id} | .kiro/skills/${s.id}/ | — |`).join("\n")}
-| pr-size-hint | .kiro/hooks/pr-size-guard.json | RUN |
-| Spec de exemplo | .kiro/specs/exemplo-checkout-demo001/ | SPEC |
-| Template de PR | .github/pull_request_template.md | RUN |
-| Onboarding | .kiro/steering/kirocop-onboarding.md | — |
-
-Os agentes são arquivos Markdown (.kiro/agents/<nome>.md) no schema atual do Kiro
-(IDE 1.x / CLI V3). Ref.: https://kiro.dev/docs/custom-agents/configuration-reference/
-`,
+  "README.md": README_MD,
+  "LOGO.txt": LOGO_TXT,
 };
 
 // agentes (.md) entram no zip a partir do array AGENTS
@@ -566,6 +725,9 @@ export default function Crew() {
         ".github/pull_request_template.md",
         `## O que este PR faz\n\n## Card do Jira\nCloses \n\n## Uso de IA (para o RADAR)\n<!-- Campos estruturados e auto-declarados. O pr-auditor e scripts de CI leem daqui; nao e telemetria. Nao remova as chaves. -->\n- tarefa-principal: feature        <!-- commit | explicar-codigo | gerar-testes | refatorar | feature | spec | debug | review -->\n- modelo-predominante: Sonnet      <!-- Haiku | Sonnet | Opus | Fable -->\n- ia-pct: 70\n- revisao-assistida: sim           <!-- sim | nao -->\n\n## Checklist\n- [ ] Todos os critérios de aceite do card estão cobertos no diff\n- [ ] Testes adicionados/atualizados para o que mudou\n- [ ] Sem secrets ou PII no código/commits\n- [ ] PR em tamanho gerenciável (uma tarefa da spec por PR, quando possível)\n- [ ] Rodei o pr-auditor do KiroCópter e tratei os pontos críticos\n\n## Evidência\n`,
       );
+      // demo ao vivo (pasta exemplo-demo/ na raiz)
+      zip.file("exemplo-demo/DEMO-001-card.md", DEMO_CARD);
+      zip.file("exemplo-demo/DEMO-PR-1.diff", DEMO_DIFF);
       const blob = await zip.generateAsync({ type: "blob" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -671,7 +833,7 @@ export default function Crew() {
         </FadeIn>
         <FadeIn delay={0.15}>
           <Card className="card-glow h-full border-l-4 border-l-accent p-5">
-            <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">radar-orchestrator</span><Badge>ORQUESTRA</Badge></div>
+            <div className="flex items-start justify-between gap-2"><span className="num text-base font-semibold">kirocopter</span><Badge>ORQUESTRA</Badge></div>
             <p className="mt-3 text-xs text-muted">A torre de controle. Você fala com um agente só; ele identifica o pedido e aciona o especialista certo, depois consolida a resposta.</p>
           </Card>
         </FadeIn>
