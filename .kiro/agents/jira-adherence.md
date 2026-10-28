@@ -3,7 +3,7 @@ name: jira-adherence
 description: "KiroCópter · SPEC: audita o diff de um PR contra os critérios de aceite da história do Jira, marcando cada critério como atendido, parcial ou não encontrado, com evidência arquivo:linha."
 tools: ["read", "shell"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
   - "file://.kiro/skills/kirocop-spec-ears/SKILL.md"
 permissions:
   rules:

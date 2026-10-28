@@ -78,9 +78,9 @@ const AGENTS: Agent[] = [
     md: `---
 name: kirocopter
 description: "KiroCópter · Orquestrador: recebe o pedido do Tech Lead/dev e aciona o agente certo — analise-starter (abrir card), jira-adherence (PR x card) ou pr-auditor (risco do PR) — e consolida a resposta."
-tools: ["read", "invoke_sub_agent", "orchestrate_subagent"]
+tools: ["subagent"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
 permissions:
   rules:
     - capability: fs_read
@@ -98,7 +98,15 @@ permissions:
 
 Você é o kirocopter do KiroCópter, a torre de controle do crew. Recebe um pedido e roteia para o especialista:
 
-- Abrir/organizar a análise de um card do Jira (qualquer prefixo [A-Z]+-\\d+), criar pasta/README → delegue ao analise-starter.
+- Abrir/organizar a análise de um card do Jira (qualquer prefixo [A-Z]+-\\d+) → SEMPRE
+  invoque o subagente analise-starter, sem pedir confirmação. Gatilhos: "abre/abra a
+  análise", "peguei o card", "quero começar o card", "cria a pasta do card", ou um código
+  de card com arquivo/conteúdo do card.
+  - A tarefa só está concluída quando .kiro/analises/<CARD>/README.md existir. Confirme
+    o caminho criado na resposta.
+  - NUNCA responda só com o conteúdo do README na tela, como se a pasta tivesse sido criada.
+  - Se a ferramenta de subagente não estiver disponível, diga logo no início:
+    "Não consegui acionar o analise-starter nesta sessão; a pasta NÃO foi criada."
 - Auditar se um PR bate com os critérios do card → delegue ao jira-adherence.
 - Calcular o risco de um PR (99% IA, aprovado em 30s, etc.) → delegue ao pr-auditor.
 - Dúvida de qual modelo usar numa tarefa → responda com base na skill kirocop-sugere-modelo (não precisa delegar).
@@ -120,7 +128,7 @@ name: analise-starter
 description: "KiroCópter · SPEC/BUILD: abre a análise de um card do Jira (qualquer prefixo, ex. CRPR-, DENA-, PLAT-...). Classifica o tipo do card, cria a estrutura de pasta e o README no padrão da squad, puxando o contexto do Jira (MCP) ou do conteúdo colado. Antes de cada tarefa, sugere o modelo adequado."
 tools: ["read", "write", "shell"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
   - "file://.kiro/skills/kirocop-sugere-modelo/SKILL.md"
   - "file://.kiro/skills/kirocop-spec-ears/SKILL.md"
   - "file://.kiro/skills/kirocop-git-conventions/SKILL.md"
@@ -170,7 +178,7 @@ name: jira-adherence
 description: "KiroCópter · SPEC: audita o diff de um PR contra os critérios de aceite da história do Jira, marcando cada critério como atendido, parcial ou não encontrado, com evidência arquivo:linha."
 tools: ["read", "shell"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
   - "file://.kiro/skills/kirocop-spec-ears/SKILL.md"
 permissions:
   rules:
@@ -213,7 +221,7 @@ name: pr-auditor
 description: "KiroCópter · RUN: calcula o risk score de um PR (revisão vs. esperado, % IA, aderência ao card, testes, tamanho) e, se crítico, redige o pedido de re-review."
 tools: ["read", "shell"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
   - "file://.kiro/skills/kirocop-revisao-pr/SKILL.md"
 permissions:
   rules:
@@ -288,28 +296,62 @@ const routingTable = (Object.keys(RECOMMENDED) as KiroTask[])
   .join("\n");
 
 const STEERING_RADAR_CREW = `---
-name: radar-crew
-description: Contexto e regras do RADAR Crew / KiroCópter — kit reutilizável de agentes, skills e hook do Kiro para squads da VP Tech. Sempre incluído quando o kit está instalado.
+name: kirocop-crew
+description: Contexto e regras do RADAR Crew — kit reutilizável de agentes, skills e hooks do Kiro para squads da VP Tech. Sempre incluído quando o kit está instalado.
 inclusion: always
 ---
 
-# RADAR Crew (KiroCópter) — contexto e regras
+# RADAR Crew — contexto e regras
 
 O RADAR mede se a adoção de IA (Kiro + AI-DLC) melhora a engenharia da VP Tech em
-velocidade, qualidade e custo. O KiroCópter é o que *age* sobre o que o RADAR mede:
-agentes, skills e um hook do Kiro que qualquer squad instala copiando a pasta \`.kiro/\`.
+velocidade, qualidade e custo. O **RADAR Crew** é o que _age_ sobre o que o RADAR mede:
+um conjunto de agentes, skills e um hook do Kiro que qualquer squad instala no próprio
+repositório copiando a pasta \`.kiro/\`.
 
 ## Build Once, Use Everywhere
+
 Nada aqui é específico de uma squad. Os agentes detectam o contexto do repositório
-(prefixo de Jira, stack, convenções) em vez de assumir nomes fixos.
+(prefixo de Jira, stack, convenções) em vez de assumir nomes fixos. Uma squad instala,
+seleciona os agentes no seletor do Kiro e usa.
 
 ## Regras do crew (valem para todos os agentes)
-- Responder em pt-BR, com evidência concreta: arquivo:linha, número, link do PR/card.
-- Nunca inventar evidência. Se o dado não está no diff/card/repo, diga que não encontrou.
-- Métricas apoiam conversa, não ranking punitivo. Nada de "pior dev".
-- LGPD/segurança: não colar secrets nem PII (dado de aluno, CPF, e-mail). Referenciar por nome da chave.
-- PR enxuto: uma tarefa da spec por PR. É recomendação; o hook pr-size-hint só avisa acima de 1000 linhas.
-- Custo consciente: antes da tarefa, pensar se precisa mesmo de LLM. Commit/lint/formatação são determinísticos (hook, custo zero).
+
+- **Responder em pt-BR**, com evidência concreta: \`arquivo:linha\`, número, link do PR/card.
+- **Nunca inventar evidência.** Se o dado não está no diff, no card ou no repo, diga que
+  não encontrou — não preencha com suposição.
+- **Métricas apoiam conversa, não ranking punitivo.** Nada de "pior dev". O objetivo é
+  apoiar o Tech Lead e o dev, não expor ninguém.
+- **LGPD / segurança:** não colar secrets nem PII (dados de aluno, CPF, e-mail) em prompts
+  ou arquivos versionados. Referenciar por nome da chave, nunca o valor.
+- **PR enxuto:** preferir PRs menores, uma tarefa da spec por PR. É recomendação, não regra:
+  o hook \`pr-size-hint\` apenas avisa quando o diff passa de 1000 linhas, nunca bloqueia.
+- **Custo consciente:** antes de uma tarefa, pensar se ela precisa mesmo de LLM. Commit,
+  lint e formatação são determinísticos (hook, custo zero). Ver a skill \`sugere-modelo\`.
+
+## Peças do kit
+
+| Peça                            | Caminho                                         | Papel                                                  |
+| ------------------------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| Agente \`kirocopter\`             | \`.kiro/agents/kirocopter.md\`                    | Entrada do crew: roteia o pedido                       |
+| Agente \`analise-starter\`        | \`.kiro/agents/analise-starter.md\`               | Abre a análise de um card de Jira (qualquer prefixo)   |
+| Agente \`jira-adherence\`         | \`.kiro/agents/jira-adherence.md\`                | Audita PR × critérios do card                          |
+| Agente \`pr-auditor\`             | \`.kiro/agents/pr-auditor.md\`                    | Calcula o risk score do PR                             |
+| Skill \`kirocop-sugere-modelo\`   | \`.kiro/skills/kirocop-sugere-modelo/SKILL.md\`   | Dica de modelo por tarefa, antes de executar           |
+| Skill \`kirocop-spec-ears\`       | \`.kiro/skills/kirocop-spec-ears/SKILL.md\`       | Template de critérios de aceite                        |
+| Skill \`kirocop-revisao-pr\`      | \`.kiro/skills/kirocop-revisao-pr/SKILL.md\`      | Checklist de revisão de PR com IA                      |
+| Skill \`kirocop-git-conventions\` | \`.kiro/skills/kirocop-git-conventions/SKILL.md\` | Branch/commit/PR (universal, sem git flow)             |
+| Hook \`pr-size-hint\`             | \`.kiro/hooks/pr-size-guard.json\`                | Avisa (não bloqueia) em PR > 1000 linhas, sem LLM      |
+| Template de PR                  | \`.github/pull_request_template.md\`              | Corpo do PR com card + % de IA + checklist             |
+| Spec de exemplo                 | \`.kiro/specs/exemplo-checkout-demo001/\`         | requirements → design → tasks (card fictício DEMO-001) |
+| Onboarding                      | \`.kiro/steering/kirocop-onboarding.md\`          | Guia de qual agente chamar                             |
+
+## Roteamento automático (vale para qualquer agente)
+
+- Pedido para abrir a análise de um card → acione o subagente analise-starter, que é o
+  único com escrita em .kiro/analises/\\*\\*. Não peça permissão ao usuário para delegar.
+- PR x card → jira-adherence. Risco de PR → pr-auditor.
+- Se não for possível acionar o subagente, avise explicitamente que a ação NÃO foi
+  executada. Nunca apresente conteúdo na tela como se o arquivo tivesse sido criado.
 `;
 
 // README completo (com arte ASCII) e LOGO reais do .kiro/ do repo
@@ -494,7 +536,7 @@ const LOGO_TXT = `
 `;
 
 const KIT_FILES: Record<string, string> = {
-  "steering/radar-crew.md": STEERING_RADAR_CREW,
+  "steering/kirocop-crew.md": STEERING_RADAR_CREW,
   "steering/kirocop-onboarding.md": `---
 name: kirocop-onboarding
 description: Guia rápido de como usar o KiroCópter no dia a dia — qual agente chamar em cada situação. Carregue ao começar a usar o kit ou quando tiver dúvida de qual peça aplicar.
@@ -717,24 +759,29 @@ export default function Crew() {
     setZipping(true);
     try {
       const zip = new JSZip();
-      const kiro = zip.folder(".kiro")!;
+      const kiro = zip.folder("demoKirocopter/.kiro")!;
       for (const [path, content] of Object.entries(buildZipFiles()))
         kiro.file(path, content);
       // template de PR fica em .github/ (fora de .kiro/)
       zip.file(
-        ".github/pull_request_template.md",
+        "demoKirocopter/.github/pull_request_template.md",
         `## O que este PR faz\n\n## Card do Jira\nCloses \n\n## Uso de IA (para o RADAR)\n<!-- Campos estruturados e auto-declarados. O pr-auditor e scripts de CI leem daqui; nao e telemetria. Nao remova as chaves. -->\n- tarefa-principal: feature        <!-- commit | explicar-codigo | gerar-testes | refatorar | feature | spec | debug | review -->\n- modelo-predominante: Sonnet      <!-- Haiku | Sonnet | Opus | Fable -->\n- ia-pct: 70\n- revisao-assistida: sim           <!-- sim | nao -->\n\n## Checklist\n- [ ] Todos os critérios de aceite do card estão cobertos no diff\n- [ ] Testes adicionados/atualizados para o que mudou\n- [ ] Sem secrets ou PII no código/commits\n- [ ] PR em tamanho gerenciável (uma tarefa da spec por PR, quando possível)\n- [ ] Rodei o pr-auditor do KiroCópter e tratei os pontos críticos\n\n## Evidência\n`,
       );
       // demo ao vivo (pasta exemplo-demo/ na raiz)
-      zip.file("exemplo-demo/DEMO-001-card.md", DEMO_CARD);
-      zip.file("exemplo-demo/DEMO-PR-1.diff", DEMO_DIFF);
+      zip.file("demoKirocopter/exemplo-demo/DEMO-001-card.md", DEMO_CARD);
+      zip.file("demoKirocopter/exemplo-demo/DEMO-PR-1.diff", DEMO_DIFF);
+      // workspace para abrir o kit no VS Code/Kiro
+      zip.file(
+        "demoKirocopter/demoKirocopter.code-workspace",
+        JSON.stringify({ folders: [{ path: "." }], settings: {} }, null, 2),
+      );
       const blob = await zip.generateAsync({ type: "blob" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "kirocopter-kit.zip";
+      a.download = "demoKirocopter.zip";
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      toast.success("kirocopter-kit.zip baixado", {
+      toast.success("demoKirocopter.zip baixado", {
         description: "Descompacte na raiz do seu repositório",
       });
     } catch {
@@ -853,7 +900,7 @@ export default function Crew() {
         ))}
         <FadeIn delay={0.16}>
           <Card className="card-glow h-full p-5">
-            <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-accent" /><span className="num text-sm font-semibold">radar-crew</span></div>
+            <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-accent" /><span className="num text-sm font-semibold">kirocop-crew</span></div>
             <p className="mt-2 text-xs leading-relaxed text-muted">Steering sempre ativo com o contexto e as regras do crew: pt-BR, evidência, LGPD, PR enxuto.</p>
             <Badge tone="accent" className="mt-3">steering</Badge>
           </Card>

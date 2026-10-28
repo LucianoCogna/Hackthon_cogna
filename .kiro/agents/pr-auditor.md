@@ -3,7 +3,7 @@ name: pr-auditor
 description: "KiroCópter · RUN: calcula o risk score de um PR (revisão vs. esperado, % IA, aderência ao card, testes, tamanho) e, se crítico, redige o pedido de re-review."
 tools: ["read", "shell"]
 resources:
-  - "file://.kiro/steering/radar-crew.md"
+  - "file://.kiro/steering/kirocop-crew.md"
   - "file://.kiro/skills/kirocop-revisao-pr/SKILL.md"
   - "file://.kiro/skills/kirocop-sugere-modelo/SKILL.md"
 permissions:
